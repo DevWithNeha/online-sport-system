@@ -128,16 +128,19 @@ async function loginUser(){
     } else {
         window.location.href = "dashboard.html"; // User dashboard
     }
+    
+const token = localStorage.getItem("osn_token");
+const user  = JSON.parse(localStorage.getItem("osn_user") || "{}");
 
-    if(user.role === "user"){
-    window.location.href = "user/user-dashboard.html";
-} else if(user.role === "player"){
-    window.location.href = "player/player-dashboard.html";
-} else if(user.role === "coach"){
-    window.location.href = "coach/coach-dashboard.html";
-} else if(user.role === "admin"){
-    window.location.href = "admin/admin.html";
-}
+if(!token || !user.role) window.location.href="index.html";
+
+// Redirect according to role
+if(user.role === "user") window.location.href="user-dashboard.html";
+else if(user.role === "player") window.location.href="player-dashboard.html";
+else if(user.role === "coach") window.location.href="coach-dashboard.html";
+else if(user.role === "admin") window.location.href="admin.html";
+
+  
 
 }
 </script>
