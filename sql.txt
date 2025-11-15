@@ -1,0 +1,157 @@
+-- ================================
+-- 1) DATABASE CREATE
+-- ================================
+CREATE DATABASE IF NOT EXISTS osn_db;
+USE osn_db;
+
+-- ================================
+-- 2) USERS TABLE
+-- ================================
+CREATE TABLE IF NOT EXISTS users (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(120),
+  email VARCHAR(180) UNIQUE,
+  password VARCHAR(255),
+  role ENUM('user','player','coach','admin') DEFAULT 'user',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ================================
+-- 3) TEAMS TABLE
+-- ================================
+CREATE TABLE IF NOT EXISTS teams (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(150),
+  sport VARCHAR(50),
+  owner_id INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- ================================
+-- 4) TEAM PLAYERS (Many-to-Many)
+-- ================================
+CREATE TABLE IF NOT EXISTS team_players (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  team_id INT,
+  player_id INT,
+  player_role VARCHAR(100),
+  FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+  FOREIGN KEY (player_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- ================================
+-- 5) TOURNAMENTS TABLE
+-- ================================
+CREATE TABLE IF NOT EXISTS tournaments (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(150),
+  sport VARCHAR(50),
+  start_date DATE,
+  end_date DATE,
+  entry_fee DECIMAL(10,2) DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ================================
+-- 6) TOURNAMENT REGISTRATIONS
+-- ================================
+CREATE TABLE IF NOT EXISTS registrations (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  tournament_id INT,
+  team_id INT,
+  paid BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE,
+  FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+);
+
+-- ================================
+-- 7) MATCHES TABLE
+-- ================================
+CREATE TABLE IF NOT EXISTS matches (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  tournament_id INT,
+  team_a INT,
+  team_b INT,
+  match_date DATETIME,
+  status ENUM('scheduled','live','finished') DEFAULT 'scheduled',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE
+);
+
+-- ================================
+-- 8) LIVE SCORES / RESULTS
+-- ================================
+CREATE TABLE IF NOT EXISTS scores (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  match_id INT,
+  score_a VARCHAR(50),
+  score_b VARCHAR(50),
+  winner VARCHAR(150),
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
+);
+
+-- ================================
+-- 9) GROUND BOOKINGS (Advanced Feature)
+-- ================================
+CREATE TABLE IF NOT EXISTS bookings (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT,
+  ground_name VARCHAR(100),
+  date DATE,
+  time_slot VARCHAR(50),
+  status ENUM('pending','confirmed','cancelled') DEFAULT 'pending',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- ================================
+-- 10) PAYMENTS (Tournament / Booking)
+-- ================================
+CREATE TABLE IF NOT EXISTS payments (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT,
+  amount DECIMAL(10,2),
+  purpose ENUM('tournament','booking','other'),
+  reference VARCHAR(100),
+  status ENUM('success','failed','pending') DEFAULT 'pending',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- ================================
+-- 11) NOTIFICATIONS TABLE
+-- ================================
+CREATE TABLE IF NOT EXISTS notifications (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT,
+  title VARCHAR(200),
+  message TEXT,
+  seen BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+INSERT INTO users (name,email,password,role,created_at)
+VALUES (
+  'Super Admin',
+  'admin@osn.com',
+  '$2a$08$8ZPPTx0gIZ8G.N8A8oK9IezVgAyXge75buaHGLTuQMLBTAz9BmbxW',
+  'admin',
+  NOW()
+);
+
+
+
+
+
+
+
+
+
+
+
+
+

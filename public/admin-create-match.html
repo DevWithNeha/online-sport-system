@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Create New Match</title>
+<style>
+body { font-family: Arial, sans-serif; padding: 20px; }
+label { display:block; margin-top:10px; }
+input, select { width: 100%; padding:8px; margin-top:4px; border-radius:5px; border:1px solid #ccc; }
+button { margin-top:15px; padding:10px 20px; background:#2563eb; color:white; border:none; border-radius:5px; cursor:pointer; }
+button:hover { background:#1e40af; }
+</style>
+</head>
+<body>
+<h2>Create New Match</h2>
+
+<form id="createMatchForm">
+    <label>Tournament:</label>
+    <select id="tournamentSelect">
+        <option value="">Select Tournament</option>
+    </select>
+
+    <label>Team A:</label>
+    <input type="text" id="teamA">
+
+    <label>Team B:</label>
+    <input type="text" id="teamB">
+
+    <label>Match Date:</label>
+    <input type="date" id="matchDate">
+
+    <button type="button" onclick="createMatch()">Create Match</button>
+</form>
+
+<script>
+// Step 2: Load tournaments dropdown
+async function loadTournamentsDropdown(){
+    const token = localStorage.getItem("osn_token");
+    const res = await fetch("/api/admin/tournaments", {
+        headers: { "Authorization": "Bearer " + token }
+    });
+    const data = await res.json();
+
+    const select = document.getElementById("tournamentSelect");
+    select.innerHTML = '<option value="">Select Tournament</option>';
+
+    data.forEach(t => {
+        const opt = document.createElement("option");
+        opt.value = t.id;
+        opt.textContent = t.name;
+        select.appendChild(opt);
+    });
+}
+
+window.addEventListener("DOMContentLoaded", loadTournamentsDropdown);
+
+// Step 3: Create match function
+async function createMatch(){
+    const tournamentId = document.getElementById("tournamentSelect").value;
+    const teamA = document.getElementById("teamA").value.trim();
+    const teamB = document.getElementById("teamB").value.trim();
+    const date  = document.getElementById("matchDate").value;
+
+    if(!tournamentId || !teamA || !teamB || !date){
+        alert("Please fill all fields");
+        return;
+    }
+
+    const token = localStorage.getItem("osn_token");
+
+    const res = await fetch("/api/admin/matches", {
+        method:"POST",
+        headers:{
+            "Content-Type":"application/json",
+            "Authorization": "Bearer " + token
+        },
+        body: JSON.stringify({ tournamentId, teamA, teamB, date })
+    });
+
+    const data = await res.json();
+    if(res.ok) alert("Match created successfully!");
+    else alert(data.message || "Error creating match");
+}
+</script>
+</body>
+</html>

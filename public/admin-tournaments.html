@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin - Manage Tournaments</title>
+
+<style>
+body {
+    margin:0;
+    font-family:"Segoe UI", Arial;
+    background:#f1f5f9;
+}
+
+/* TOP BAR */
+.header {
+    background: linear-gradient(90deg, #0f172a, #1e3a8a);
+    padding:16px 24px;
+    color:white;
+    font-size:22px;
+    font-weight:700;
+}
+
+/* WRAPPER */
+.container {
+    max-width:1100px;
+    margin:20px auto;
+    padding:20px;
+}
+
+/* CARD */
+.card {
+    background:white;
+    padding:22px;
+    border-radius:14px;
+    box-shadow:0 6px 20px rgba(0,0,0,0.08);
+    margin-bottom:20px;
+}
+
+/* INPUTS */
+label {
+    font-weight:600;
+    display:block;
+    margin:8px 0 4px;
+}
+
+input {
+    width:100%;
+    padding:12px;
+    border:1px solid #cbd5e1;
+    border-radius:10px;
+    font-size:15px;
+    margin-bottom:12px;
+}
+
+/* BUTTON */
+.btn {
+    background:#2563eb;
+    color:white;
+    padding:12px 18px;
+    border:none;
+    border-radius:10px;
+    font-size:16px;
+    cursor:pointer;
+}
+.btn:hover { background:#1e40af; }
+
+/* TOURNAMENT LIST */
+.t-item {
+    padding:16px;
+    border:1px solid #e2e8f0;
+    border-radius:12px;
+    margin-bottom:14px;
+    background:#fff;
+}
+
+.del-btn {
+    background:#ef4444;
+    padding:6px 12px;
+    border-radius:8px;
+    color:white;
+    font-weight:600;
+    cursor:pointer;
+    border:none;
+}
+.del-btn:hover {
+    background:#b91c1c;
+}
+
+.name {
+    font-size:20px;
+    font-weight:700;
+    color:#0f172a;
+}
+.small {
+    color:#64748b;
+    margin-top:4px;
+}
+</style>
+</head>
+
+<body>
+
+    <div class="tournament-header">
+    <h2>Upcoming Tournaments</h2>
+    <!-- Create Tournament Button -->
+    <button id="createTournamentBtn" class="btn">Create Tournament</button>
+</div>
+
+<!-- Hidden form for creating a tournament -->
+<div id="createTournamentForm" style="display:none; margin-top:20px;">
+    <input id="tournamentName" placeholder="Tournament Name" class="input-field">
+    <button onclick="createTournament()" class="btn">Submit</button>
+</div>
+
+
+<div class="header">🏆 Manage Tournaments</div>
+
+<div class="container">
+
+    <!-- CREATE TOURNAMENT -->
+    <div class="card">
+        <h2>Create Tournament</h2>
+        <label>Name</label>
+        <input id="tname">
+
+        <label>Sport</label>
+        <input id="tsport">
+
+        <label>Start Date</label>
+        <input id="tstart" type="date">
+
+        <label>End Date</label>
+        <input id="tend" type="date">
+
+        <label>Entry Fee</label>
+        <input id="tfee" type="number" value="0">
+
+        <button class="btn" onclick="createTournament()">Create Tournament</button>
+
+        <div id="msg" style="margin-top:12px;color:#0f172a;font-weight:600;"></div>
+    </div>
+
+    
+    <!-- LIST ALL -->
+    <div class="card">
+        <h2>All Tournaments</h2>
+        <div id="tList">Loading...</div>
+    </div>
+</div>
+
+<script>
+const token = localStorage.getItem("osn_token");
+const user  = JSON.parse(localStorage.getItem("osn_user") || "{}");
+
+// AUTH: Only admin access
+if (!token || user.role !== "admin") {
+    window.location.href = "index.html";
+}
+
+async function loadTournaments(){
+    const res = await fetch("/api/admin/tournaments", { 
+        headers: { "Authorization": "Bearer " + token }
+    });
+    const data = await res.json();
+
+    if(!Array.isArray(data)){
+        document.getElementById("tList").innerHTML = "Error loading tournaments";
+        return;
+    }
+
+    document.getElementById("tList").innerHTML =
+        data.map(t => `
+            <div class="t-item">
+                <div class="name">${t.name}</div>
+                <div class="small">
+                    Sport: ${t.sport || "-"}<br>
+                    ${t.start_date || "-"} → ${t.end_date || "-"}<br>
+                    Entry Fee: ₹${t.entry_fee || "0"}
+                </div>
+                <button class="del-btn" onclick="deleteTournament(${t.id})">Delete</button>
+            </div>
+        `).join("") || "No tournaments yet.";
+}
+
+async function createTournament(){
+    const name  = document.getElementById("tname").value.trim();
+    const sport = document.getElementById("tsport").value.trim();
+    const start = document.getElementById("tstart").value;
+    const end   = document.getElementById("tend").value;
+    const fee   = document.getElementById("tfee").value;
+
+    if(!name || !sport || !start || !end){
+        document.getElementById("msg").innerText = "Please fill all fields";
+        return;
+    }
+
+    const res = await fetch("/api/admin/tournaments", {  // <-- update API
+        method:"POST",
+        headers:{
+            "Content-Type":"application/json",
+            "Authorization": "Bearer " + token  // <-- add JWT
+        },
+        body:JSON.stringify({
+            name,
+            sport,
+            start_date:start,
+            end_date:end,
+            entry_fee:fee
+        })
+    });
+
+    const data = await res.json();
+
+    if(!res.ok){
+        document.getElementById("msg").innerText = data.message || "Error";
+        return;
+    }
+
+    document.getElementById("msg").innerText = "Tournament Created Successfully!";
+    loadTournaments();
+}
+
+async function deleteTournament(id){
+    if(!confirm("Delete this tournament?")) return;
+
+    const res = await fetch("/api/admin/tournaments/" + id, { 
+        method:"DELETE",
+        headers: { "Authorization": "Bearer " + token } // <-- add JWT
+    });
+
+    if(res.ok){
+        loadTournaments();
+    }
+}
+
+loadTournaments();
+</script>
+
+
+</body>
+</html>

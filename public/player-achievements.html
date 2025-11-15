@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>OSN – Achievements</title>
+<style>
+body{margin:0;font-family:"Segoe UI",Arial;background:#f4f7fa;display:flex}
+
+/* SIDEBAR */
+.sidebar{width:230px;height:100vh;background:#1e293b;color:white;position:fixed;top:0;left:0;padding:20px 0}
+.sidebar h2{text-align:center;margin-bottom:20px}
+.sidebar a{display:block;padding:12px 20px;color:#cbd5e1;text-decoration:none}
+.sidebar a:hover{background:#0f172a;color:white}
+
+/* MAIN */
+.main{margin-left:230px;padding:22px;width:100%}
+.topbar{background:white;padding:16px;border-radius:10px;font-size:22px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,0.08);margin-bottom:20px}
+
+/* ACHIEVEMENTS LIST */
+.card{background:white;padding:20px;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,0.08);margin-bottom:20px}
+.item{padding:12px 0;border-bottom:1px solid #eee}
+.item:last-child{border-bottom:none}
+.small{color:#64748b;font-size:14px}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <h2>OSN Player</h2>
+  <a href="player-dashboard.html">🏠 Dashboard</a>
+  <a href="player-matches.html">🏆 My Matches</a>
+  <a href="player-stats.html">📊 Stats</a>
+  <a href="player-training.html">💪 Training</a>
+  <a href="player-achievements.html">🏅 Achievements</a>
+  <a href="player-profile.html">🙍 Profile</a>
+  <a href="#" onclick="logout()">🚪 Logout</a>
+</div>
+
+<div class="main">
+  <div class="topbar">Achievements</div>
+
+  <div class="card">
+    <h3>My Achievements</h3>
+    <div id="achievementList">Loading achievements...</div>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem("osn_token");
+const player = JSON.parse(localStorage.getItem("osn_user") || "{}");
+
+if(!token || player.role !== "player"){
+    window.location.href="../index.html";
+}
+
+// Load achievements
+async function loadAchievements(){
+    const box = document.getElementById("achievementList");
+    box.innerHTML = "Loading...";
+
+    try{
+        const res = await fetch("/api/player/achievements/" + player.id, {
+            headers:{ "Authorization":"Bearer "+token }
+        });
+        const data = await res.json();
+
+        if(!data || data.length===0){
+            box.innerHTML = "<div class='small'>No achievements yet.</div>";
+            return;
+        }
+
+        box.innerHTML = data.map(a=>`
+            <div class="item">
+                <b>${a.title}</b> — ${a.date} 
+                <div class="small">${a.description || ''}</div>
+            </div>
+        `).join("");
+
+    }catch(err){
+        console.error(err);
+        box.innerHTML = "<div class='small'>Error loading achievements.</div>";
+    }
+}
+
+function logout(){
+    localStorage.removeItem("osn_token");
+    localStorage.removeItem("osn_user");
+    window.location.href="../index.html";
+}
+
+loadAchievements();
+</script>
+
+</body>
+</html>

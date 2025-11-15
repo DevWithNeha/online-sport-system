@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OSN - Login</title>
+
+<style>
+body{
+    margin:0;
+    font-family: "Segoe UI", Arial, sans-serif;
+    background:#eef2f7;
+}
+header{
+    background: linear-gradient(90deg, #0f172a, #1e3a8a);
+    padding:16px 24px;
+    color:white;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+}
+header .logo{ font-size:22px;font-weight:700; }
+header nav a{
+    color:white;text-decoration:none;margin-left:18px;
+    font-size:16px;font-weight:500;
+}
+
+.container{
+    max-width:450px;
+    margin:60px auto;
+    background:white;
+    padding:32px 28px;
+    border-radius:12px;
+    box-shadow:0 12px 40px rgba(0,0,0,0.08);
+}
+
+h2{text-align:center;color:#1e3a8a;}
+
+label{
+    font-weight:600;margin-bottom:4px;display:block;
+}
+
+input{
+    width:100%;padding:12px;margin-bottom:16px;
+    border-radius:8px;border:1px solid #cbd5e1;font-size:15px;
+}
+
+button{
+    width:100%;padding:12px;background:#2563eb;color:white;border:none;
+    border-radius:8px;font-size:17px;font-weight:600;cursor:pointer;
+}
+
+button:hover{ background:#1e40af; }
+
+.error{
+    display:none;
+    background:#fee2e2;color:#b91c1c;
+    padding:10px;border-radius:8px;margin-bottom:14px;
+    font-weight:600;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+    <div class="logo">Online Sports Network</div>
+    <nav>
+        <a href="index.html">Login</a>
+        <a href="register.html">Register</a>
+    </nav>
+</header>
+
+<div class="container">
+    <h2>Login</h2>
+
+    <div id="error" class="error"></div>
+
+    <label>Email</label>
+    <input id="email" placeholder="Enter Email">
+
+    <label>Password</label>
+    <input id="password" type="password" placeholder="Enter Password">
+
+    <button onclick="loginUser()">LOGIN</button>
+
+    <p style="margin-top:10px;text-align:center;">
+        Don't have an account?
+        <a href="register.html">Register</a>
+    </p>
+</div>
+<script>
+async function loginUser(){
+    const emailVal = document.getElementById("email").value.trim();
+    const passwordVal = document.getElementById("password").value.trim();
+    const err = document.getElementById("error");
+
+    if(!emailVal || !passwordVal){
+        err.style.display="block";
+        err.innerText="Please fill all fields";
+        return;
+    }
+
+    const res = await fetch("/api/auth/login", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+            email: emailVal,
+            password: passwordVal
+        })
+    });
+
+    const data = await res.json();
+
+    if(!res.ok){
+        err.style.display="block";
+        err.innerText = data.message || "Login failed!";
+        return;
+    }
+
+    // Save login session
+    localStorage.setItem("osn_token", data.token);
+    localStorage.setItem("osn_user", JSON.stringify(data.user));
+
+    // ROLE-BASED REDIRECTION
+    if(data.user.role === "admin"){
+        window.location.href = "admin.html";   // Admin dashboard
+    } else {
+        window.location.href = "dashboard.html"; // User dashboard
+    }
+
+    if(user.role === "user"){
+    window.location.href = "user/user-dashboard.html";
+} else if(user.role === "player"){
+    window.location.href = "player/player-dashboard.html";
+} else if(user.role === "coach"){
+    window.location.href = "coach/coach-dashboard.html";
+} else if(user.role === "admin"){
+    window.location.href = "admin/admin.html";
+}
+
+}
+</script>
+
+
+</body>
+</html>

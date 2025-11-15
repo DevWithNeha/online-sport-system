@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OSN – Live Scores</title>
+
+<style>
+body{
+    margin:0;
+    font-family:"Segoe UI",Arial;
+    background:#f3f6fa;
+    display:flex;
+}
+
+/* SIDEBAR */
+.sidebar{
+    width:230px;
+    height:100vh;
+    background:#0f172a;
+    color:white;
+    position:fixed;
+    top:0;left:0;
+    padding:20px 0;
+}
+.sidebar h2{text-align:center;margin-bottom:20px;}
+.sidebar a{
+    display:block;
+    padding:12px 20px;
+    color:#cbd5e1;
+    text-decoration:none;
+}
+.sidebar a:hover{background:#1e293b;color:white;}
+
+.main{
+    margin-left:230px;
+    padding:22px;
+    width:100%;
+}
+
+.topbar{
+    background:white;
+    padding:16px;
+    border-radius:10px;
+    font-size:22px;
+    font-weight:600;
+    box-shadow:0 4px 20px rgba(0,0,0,0.08);
+    margin-bottom:20px;
+}
+
+/* MATCH CARD */
+.match{
+    background:white;
+    padding:18px;
+    border-radius:12px;
+    margin-bottom:16px;
+    box-shadow:0 4px 14px rgba(0,0,0,0.08);
+}
+.team-row{
+    display:flex;
+    justify-content:space-between;
+    font-size:20px;
+    font-weight:700;
+    color:#0f172a;
+}
+.vs{font-size:16px;color:#64748b;}
+
+.status{
+    margin-top:6px;
+    padding:6px 10px;
+    display:inline-block;
+    border-radius:8px;
+    font-size:13px;
+    color:white;
+}
+.live{background:#ef4444;}
+.upcoming{background:#2563eb;}
+.completed{background:#16a34a;}
+
+.timeline{
+    margin-top:14px;
+    padding:14px;
+    background:#f8fafc;
+    border-radius:10px;
+}
+.t-item{
+    padding:8px 0;
+    border-bottom:1px solid #e2e8f0;
+}
+.t-item:last-child{
+    border-bottom:none;
+}
+.small{color:#64748b;font-size:14px;}
+</style>
+</head>
+
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+    <h2>OSN User</h2>
+    <a href="user-dashboard.html">🏠 Dashboard</a>
+    <a href="user-tournaments.html">🏆 Tournaments</a>
+    <a href="user-teams.html">👥 My Teams</a>
+    <a href="user-bookings.html">📅 Ground Booking</a>
+    <a href="user-payments.html">💳 Payments</a>
+    <a href="user-profile.html">🙍 Profile</a>
+    <a href="user-live-score.html">🎥 Live Score</a>
+    <a href="#" onclick="logout()">🚪 Logout</a>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+    <div class="topbar">Live Score Updates</div>
+
+    <div id="matches">Loading matches...</div>
+</div>
+
+<script>
+const token = localStorage.getItem("osn_token");
+const user  = JSON.parse(localStorage.getItem("osn_user") || "{}");
+
+if(!token || user.role !== "user"){
+    window.location.href = "../index.html";
+}
+
+// LOAD LIVE MATCHES
+async function loadLiveMatches(){
+    const box = document.getElementById("matches");
+    box.innerHTML = "Loading matches...";
+
+    try{
+        let res = await fetch("/api/live-matches");
+        let data = await res.json();
+
+        if(data.length === 0){
+            box.innerHTML = "<div>No live matches right now.</div>";
+            return;
+        }
+
+        box.innerHTML = data.map(m => `
+            <div class="match">
+                <div class="team-row">
+                    <span>${m.team_a}</span>
+                    <span class="vs">vs</span>
+                    <span>${m.team_b}</span>
+                </div>
+
+                <div class="team-row" style="margin-top:8px;font-size:18px;">
+                    <span>${m.score_a}</span>
+                    <span></span>
+                    <span>${m.score_b}</span>
+                </div>
+
+                <div class="status ${m.status}">
+                    ${m.status.toUpperCase()}
+                </div>
+
+                <div class="timeline">
+                    ${m.timeline && m.timeline.length > 0 
+                        ? m.timeline.map(item => `
+                            <div class="t-item">
+                                <b>${item.time}</b> — ${item.event}
+                            </div>
+                        `).join("")
+                        : "<div class='small'>No events yet.</div>"
+                    }
+                </div>
+            </div>
+        `).join("");
+
+    } catch(err){
+        console.log(err);
+        box.innerHTML = "Server error fetching matches.";
+    }
+}
+
+// AUTO REFRESH every 5 seconds
+setInterval(loadLiveMatches, 5000);
+
+// INITIAL LOAD
+loadLiveMatches();
+
+function logout(){
+    localStorage.removeItem("osn_token");
+    localStorage.removeItem("osn_user");
+    window.location.href="../index.html";
+}
+</script>
+
+</body>
+</html>

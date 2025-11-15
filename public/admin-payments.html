@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>OSN — Admin Payments</title>
+
+<style>
+  :root{
+    --bg:#f4f7fb;
+    --card:#ffffff;
+    --muted:#64748b;
+    --accent:#2563eb;
+    --danger:#ef4444;
+    --ok:#16a34a;
+  }
+  body{margin:0;font-family:Inter,Segoe UI,Arial;background:var(--bg);color:#0f172a}
+  header{background:linear-gradient(90deg,#0f172a,#1e3a8a);padding:14px 20px;color:#fff;display:flex;justify-content:space-between;align-items:center}
+  header .brand{font-weight:700}
+  header nav a{color:#fff;text-decoration:none;margin-left:12px;font-weight:600}
+  .wrap{max-width:1200px;margin:20px auto;padding:16px}
+  .top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+  .search-row{display:flex;gap:10px;align-items:center}
+  input[type="search"], select{padding:10px;border-radius:8px;border:1px solid #e6eefc;}
+  .card{background:var(--card);padding:16px;border-radius:12px;box-shadow:0 8px 24px rgba(2,6,23,0.06);margin-top:14px}
+  .stats{display:flex;gap:12px;margin-bottom:12px}
+  .stat{flex:1;padding:12px;border-radius:10px;background:#fbfdff;border:1px solid #e8f1ff;text-align:center}
+  .stat h4{margin:0;color:#0f172a}
+  .small{color:var(--muted)}
+  table{width:100%;border-collapse:collapse;margin-top:12px}
+  th,td{padding:10px;border-bottom:1px solid #eef6ff;text-align:left}
+  th{background:#fbfdff;font-weight:700;color:#0f172a}
+  .btn{padding:8px 10px;border-radius:8px;border:none;cursor:pointer;font-weight:700}
+  .btn.primary{background:var(--accent);color:#fff}
+  .btn.ghost{background:transparent;border:1px solid #cbd5e1}
+  .btn.refund{background:#f97316;color:white}
+  .small-muted{font-size:13px;color:var(--muted)}
+  .empty{text-align:center;padding:20px;color:var(--muted)}
+  .actions{display:flex;gap:8px}
+  @media(max-width:900px){ .stats{flex-direction:column} table, th, td {font-size:13px} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">OSN Admin</div>
+  <nav>
+    <a href="admin.html">Dashboard</a>
+    <a href="admin-tournaments.html">Tournaments</a>
+    <a href="admin-bookings.html">Bookings</a>
+    <a href="admin-users.html">Users</a>
+  </nav>
+</header>
+
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h2 style="margin:0">Payments</h2>
+      <div class="small" style="margin-top:6px">View & manage all payments made by users.</div>
+    </div>
+
+    <div class="search-row">
+      <input type="search" id="q" placeholder="Search by user, ref, purpose, amount..." oninput="applyFilters()" />
+      <select id="statusFilter" onchange="applyFilters()">
+        <option value="">All status</option>
+        <option value="success">Success</option>
+        <option value="pending">Pending</option>
+        <option value="refunded">Refunded</option>
+      </select>
+      <button class="btn primary" onclick="exportCSV()">Export CSV</button>
+      <button class="btn ghost" onclick="loadPayments()">Refresh</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="stats">
+      <div class="stat">
+        <h4 id="totalPayments">—</h4>
+        <p class="small">Total payments</p>
+      </div>
+      <div class="stat">
+        <h4 id="totalAmount">—</h4>
+        <p class="small">Total amount (₹)</p>
+      </div>
+      <div class="stat">
+        <h4 id="pendingCount">—</h4>
+        <p class="small">Pending</p>
+      </div>
+      <div class="stat">
+        <h4 id="refundedCount">—</h4>
+        <p class="small">Refunded</p>
+      </div>
+    </div>
+
+    <div id="tableWrap">
+      <table id="paymentsTable" aria-live="polite">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>User</th>
+            <th>Amount (₹)</th>
+            <th>Purpose</th>
+            <th>Reference</th>
+            <th>Status</th>
+            <th>Date</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="paymentsBody">
+          <tr><td colspan="8" class="small-muted">Loading payments...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  // admin guard
+  const token = localStorage.getItem('osn_token');
+  const user  = JSON.parse(localStorage.getItem('osn_user') || '{}');
+  if(!token || user.role !== 'admin'){
+    location.href = 'index.html';
+  }
+
+  let PAYMENTS = [];
+
+  async function loadPayments(){
+    const tbody = document.getElementById('paymentsBody');
+    tbody.innerHTML = '<tr><td colspan="8" class="small-muted">Loading payments...</td></tr>';
+    try{
+      const res = await fetch('/api/payments', { headers: { 'Authorization': 'Bearer ' + token }});
+      if(!res.ok) throw new Error('Failed');
+      const data = await res.json();
+      PAYMENTS = Array.isArray(data) ? data : [];
+      renderPayments(PAYMENTS);
+      updateStats(PAYMENTS);
+    }catch(err){
+      tbody.innerHTML = '<tr><td colspan="8" class="empty">Unable to load payments — server error.</td></tr>';
+      console.error(err);
+    }
+  }
+
+  function renderPayments(list){
+    const body = document.getElementById('paymentsBody');
+    if(!list || list.length === 0){
+      body.innerHTML = '<tr><td colspan="8" class="empty">No payments found.</td></tr>';
+      return;
+    }
+
+    body.innerHTML = list.map(p => {
+      const date = new Date(p.created_at || p.createdAt || p.created).toLocaleString();
+      const userLabel = p.user_name || (p.user_id ? `User#${p.user_id}` : 'Unknown');
+      const status = (p.status || '').toLowerCase();
+      const statusLabel = status === 'success' ? `<span style="color:${status === 'success' ? 'var(--ok)' : 'var(--muted)'};font-weight:700">${status}</span>` : `<span class="small-muted">${status}</span>`;
+      return `
+        <tr data-id="${p.id}">
+          <td>${p.id}</td>
+          <td>${escapeHtml(userLabel)}</td>
+          <td>${Number(p.amount||0).toFixed(2)}</td>
+          <td>${escapeHtml(p.purpose||'')}</td>
+          <td>${escapeHtml(p.reference||'')}</td>
+          <td>${statusLabel}</td>
+          <td>${date}</td>
+          <td class="actions">
+            ${status !== 'refunded' ? `<button class="btn refund" onclick="refund(${p.id})">Refund</button>` : `<button class="btn ghost" onclick="markSuccess(${p.id})">Mark Success</button>`}
+            <button class="btn ghost" onclick="view(${p.id})">View</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function updateStats(list){
+    document.getElementById('totalPayments').innerText = list.length;
+    const sum = list.reduce((s,x)=>s + Number(x.amount||0), 0);
+    document.getElementById('totalAmount').innerText = sum.toFixed(2);
+    document.getElementById('pendingCount').innerText = list.filter(x=> (x.status||'').toLowerCase()==='pending').length;
+    document.getElementById('refundedCount').innerText = list.filter(x=> (x.status||'').toLowerCase()==='refunded').length;
+  }
+
+  // filters
+  function applyFilters(){
+    const q = (document.getElementById('q').value||'').toLowerCase().trim();
+    const st = document.getElementById('statusFilter').value;
+    const filtered = PAYMENTS.filter(p => {
+      if(st && (p.status||'').toLowerCase() !== st) return false;
+      if(!q) return true;
+      return (String(p.user_name||p.user_id||'') + ' ' + String(p.purpose||'') + ' ' + String(p.reference||'') + ' ' + String(p.amount||'')).toLowerCase().includes(q);
+    });
+    renderPayments(filtered);
+    updateStats(filtered);
+  }
+
+  // refund action (calls backend)
+  async function refund(id){
+    if(!confirm('Mark this payment refunded?')) return;
+    try{
+      const res = await fetch(`/api/payments/${id}/refund`, {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if(!res.ok){
+        const d = await res.json().catch(()=>({message:'Server error'}));
+        return alert(d.message || 'Refund failed');
+      }
+      alert('Payment marked refunded');
+      loadPayments();
+    }catch(err){
+      console.error(err);
+      alert('Server error');
+    }
+  }
+
+  // mark success (reverse)
+  async function markSuccess(id){
+    if(!confirm('Mark this payment success?')) return;
+    try{
+      const res = await fetch(`/api/payments/${id}/success`, {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if(!res.ok){
+        const d = await res.json().catch(()=>({message:'Server error'}));
+        return alert(d.message || 'Operation failed');
+      }
+      alert('Payment marked success');
+      loadPayments();
+    }catch(err){
+      console.error(err);
+      alert('Server error');
+    }
+  }
+
+  function view(id){
+    const p = PAYMENTS.find(x=>x.id==id);
+    if(!p) return alert('Not found');
+    alert(`Payment #${p.id}\nUser: ${p.user_name || p.user_id}\nAmount: ₹${p.amount}\nPurpose: ${p.purpose}\nRef: ${p.reference}\nStatus: ${p.status}\nDate: ${new Date(p.created_at).toLocaleString()}`);
+  }
+
+  // export CSV
+  function exportCSV(){
+    if(!PAYMENTS || PAYMENTS.length===0) return alert('No payments to export');
+    const rows = [
+      ['id','user','amount','purpose','reference','status','date']
+    ];
+    for(const p of PAYMENTS){
+      rows.push([p.id, p.user_name||p.user_id, p.amount, p.purpose, p.reference, p.status, p.created_at]);
+    }
+    const csv = rows.map(r => r.map(c => `"${String(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'payments.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // escape
+  function escapeHtml(s){ return String(s||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+
+  // init
+  loadPayments();
+</script>
+
+</body>
+</html>

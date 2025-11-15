@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OSN Admin Dashboard</title>
+
+<style>
+body {
+    margin: 0;
+    font-family: "Segoe UI", Arial;
+    background: #f3f6fa;
+    display: flex;
+}
+
+/* SIDEBAR */
+.sidebar {
+    width: 250px;
+    background: #0f172a;
+    height: 100vh;
+    color: white;
+    position: fixed;
+    left: 0;
+    top: 0;
+    padding-top: 20px;
+}
+
+.sidebar h2 {
+    text-align: center;
+    font-size: 22px;
+    margin-bottom: 20px;
+}
+
+.sidebar a {
+    display: block;
+    padding: 14px 22px;
+    font-size: 16px;
+    text-decoration: none;
+    color: #cbd5e1;
+    transition: 0.2s;
+}
+
+.sidebar a:hover {
+    background: #1e293b;
+    color: white;
+}
+
+/* MAIN AREA */
+.main {
+    margin-left: 250px;
+    padding: 20px;
+    width: 100%;
+}
+
+.topbar {
+    background: white;
+    padding: 15px;
+    border-radius: 10px;
+    font-size: 22px;
+    font-weight: 600;
+    color: #1e3a8a;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+
+.cards {
+    display: grid;
+    grid-template-columns: repeat(3,1fr);
+    gap: 20px;
+}
+
+.card {
+    background: white;
+    padding: 22px;
+    border-radius: 14px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+}
+
+.card h3 {
+    margin: 0;
+    color: #334155;
+}
+
+.card .number {
+    font-size: 34px;
+    font-weight: 700;
+    color: #1e3a8a;
+    margin-top: 10px;
+}
+
+.recent-box {
+    margin-top: 30px;
+    background: white;
+    padding: 20px;
+    border-radius: 14px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+}
+
+.recent-item {
+    padding: 12px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.btn-logout {
+    margin-top: 20px;
+    padding: 10px;
+    width: 80%;
+    background: #ef4444;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+}
+</style>
+</head>
+
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+    <h2>OSN Admin</h2>
+
+    <a href="admin.html">🏠 Dashboard</a>
+    <a href="admin-tournaments.html">🏆 Manage Tournaments</a>
+    <a href="admin-matches.html">🎯 Manage Matches</a>
+    <a href="admin-teams.html">👥 Manage Teams</a>
+    <a href="admin-users.html">👤 Manage Users</a>
+    <a href="admin-bookings.html">📅 Manage Bookings</a>
+    <a href="admin-payments.html">💳 Payments</a>
+
+    <button class="btn-logout" onclick="logout()">Logout</button>
+</div>
+
+<!-- MAIN AREA -->
+<div class="main">
+    <div class="topbar">Admin Dashboard</div>
+
+    <!-- STAT CARDS -->
+    <div class="cards">
+        <div class="card">
+            <h3>Total Users</h3>
+            <div class="number" id="totalUsers">—</div>
+        </div>
+
+        <div class="card">
+            <h3>Tournaments</h3>
+            <div class="number" id="totalTournaments">—</div>
+        </div>
+
+        <div class="card">
+            <h3>Pending Bookings</h3>
+            <div class="number" id="pendingBookings">—</div>
+        </div>
+    </div>
+
+    <!-- RECENT REGISTRATIONS -->
+    <div class="recent-box">
+        <h3>Recent Tournament Registrations</h3>
+        <div id="recentRegistrations">Loading...</div>
+    </div>
+</div>
+
+<script>
+// AUTH CHECK
+const token = localStorage.getItem("osn_token");
+const user = JSON.parse(localStorage.getItem("osn_user") || "{}");
+
+if (!token || user.role !== "admin") {
+    window.location.href = "index.html";
+}
+
+// LOAD DASHBOARD DATA
+async function loadDashboard() {
+    // Users
+    let res1 = await fetch("/api/users");
+    let users = await res1.json();
+    document.getElementById("totalUsers").innerText = users.length;
+
+    // Tournaments
+    let res2 = await fetch("/api/tournaments");
+    let tournaments = await res2.json();
+    document.getElementById("totalTournaments").innerText = tournaments.length;
+
+    // Bookings
+    let res3 = await fetch("/api/bookings");
+    let bookings = await res3.json();
+    let pending = bookings.filter(b => b.status === "pending").length;
+    document.getElementById("pendingBookings").innerText = pending;
+
+    // Registrations
+    let res4 = await fetch("/api/registrations");
+    let regs = await res4.json();
+
+    document.getElementById("recentRegistrations").innerHTML =
+        regs.slice(0,5).map(r=>`
+            <div class="recent-item">
+                Tournament ${r.tournament_id} — Team ${r.team_id}
+            </div>
+        `).join("") || "No recent registrations";
+}
+
+loadDashboard();
+
+// LOGOUT
+function logout() {
+    localStorage.removeItem("osn_token");
+    localStorage.removeItem("osn_user");
+    window.location.href = "index.html";
+}
+</script>
+
+</body>
+</html>

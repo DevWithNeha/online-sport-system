@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Player Dashboard</title>
+<style>
+body { font-family: Arial; margin:0; background:#f7fafc; }
+header{ background:#1e3a8a; color:white; padding:16px; display:flex; justify-content:space-between; }
+header nav a{ color:white; margin-left:16px; text-decoration:none; font-weight:600; }
+.container{ max-width:900px; margin:30px auto; padding:20px; background:white; border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,0.1); }
+h2{ color:#1e3a8a; margin-bottom:15px; }
+.card{ padding:15px; border:1px solid #cbd5e1; border-radius:8px; margin-bottom:10px; background:#f1f5f9; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>Online Sports Network - Player</div>
+  <nav>
+    <a href="player-dashboard.html">Dashboard</a>
+    <a href="player-profile.html">Profile</a>
+    <a href="#" onclick="logout()">Logout</a>
+  </nav>
+</header>
+
+<div class="container">
+  <h2>Welcome, <span id="playerName"></span></h2>
+
+  <div class="card">
+    <h3>Stats</h3>
+    <div id="playerStats">Loading...</div>
+  </div>
+
+  <div class="card">
+    <h3>Matches</h3>
+    <div id="playerMatches">Loading...</div>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem("osn_token");
+const user = JSON.parse(localStorage.getItem("osn_user") || "{}");
+
+// Auth check
+if(!token || user.role !== "player") window.location.href = "../index.html";
+
+document.getElementById("playerName").innerText = user.name;
+
+// Load player stats
+async function loadStats(){
+    const res = await fetch(`/api/player/stats/${user.id}`, {
+        headers:{ "Authorization": "Bearer " + token }
+    });
+    const data = await res.json();
+    document.getElementById("playerStats").innerHTML = `
+        Matches: ${data.matches}<br>
+        Wins: ${data.wins}<br>
+        Losses: ${data.losses}<br>
+        Points: ${data.points}
+    `;
+}
+
+// Load player matches
+async function loadMatches(){
+    const res = await fetch(`/api/player/matches/${user.id}`, {
+        headers:{ "Authorization": "Bearer " + token }
+    });
+    const matches = await res.json();
+    const container = document.getElementById("playerMatches");
+    if(matches.length===0){
+        container.innerText = "No matches scheduled";
+        return;
+    }
+    container.innerHTML = matches.map(m => `
+        <div>
+            ${m.team_a} vs ${m.team_b} - ${m.date} - Status: ${m.status || 'Pending'}
+        </div>
+    `).join("");
+}
+
+function logout(){
+    localStorage.removeItem("osn_token");
+    localStorage.removeItem("osn_user");
+    window.location.href="../index.html";
+}
+
+// Initial load
+loadStats();
+loadMatches();
+</script>
+
+</body>
+</html>

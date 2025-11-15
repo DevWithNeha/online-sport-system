@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>OSN — My Payments</title>
+<style>
+  body{margin:0;font-family:"Segoe UI",Arial;background:#f4f7fa;display:flex}
+  .sidebar{width:230px;height:100vh;background:#0f172a;color:white;position:fixed;top:0;left:0;padding:20px 0}
+  .sidebar h2{text-align:center;margin-bottom:20px}
+  .sidebar a{display:block;padding:12px 20px;color:#cbd5e1;text-decoration:none}
+  .sidebar a:hover{background:#1e293b;color:white}
+
+  .main{margin-left:230px;padding:22px;width:100%}
+  .topbar{background:white;padding:16px;border-radius:10px;font-size:22px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,0.08);margin-bottom:20px}
+
+  .card{background:white;padding:18px;border-radius:12px;box-shadow:0 6px 18px rgba(0,0,0,0.06);margin-bottom:18px}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  input,select{padding:10px;border-radius:8px;border:1px solid #e2e8f0;font-size:14px}
+  .btn{padding:10px 14px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-weight:700;cursor:pointer}
+  .btn.ghost{background:transparent;border:1px solid #cbd5e1;color:#0f172a}
+  .small{color:#64748b;font-size:13px;margin-top:6px}
+
+  table{width:100%;border-collapse:collapse;margin-top:12px}
+  th,td{padding:10px;border-bottom:1px solid #eef6ff;text-align:left}
+  th{background:#fbfdff;font-weight:700;color:#0f172a}
+
+  .empty{text-align:center;padding:18px;color:#64748b}
+  @media(max-width:800px){ .row{flex-direction:column;align-items:stretch} }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR: use same user menu -->
+<div class="sidebar">
+  <h2>OSN User</h2>
+  <a href="user-dashboard.html">🏠 Dashboard</a>
+  <a href="user-tournaments.html">🏆 Tournaments</a>
+  <a href="user-teams.html">👥 My Teams</a>
+  <a href="user-bookings.html">📅 Ground Booking</a>
+  <a href="user-payments.html">💳 Payments</a>
+  <a href="user-profile.html">🙍 Profile</a>
+  <a href="user-live-score.html">🎥 Live Score</a>
+  <a href="#" onclick="logout()">🚪 Logout</a>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">My Payments</div>
+
+  <!-- MAKE PAYMENT -->
+  <div class="card">
+    <h3>Make a Payment</h3>
+    <div class="row" style="margin-top:10px">
+      <select id="purpose">
+        <option value="tournament_entry">Tournament Entry</option>
+        <option value="booking">Ground Booking</option>
+        <option value="subscription">Subscription</option>
+        <option value="other">Other</option>
+      </select>
+
+      <input id="amount" type="number" placeholder="Amount (₹)" min="1" />
+
+      <input id="reference" placeholder="Reference / Notes (optional)" />
+
+      <button class="btn" onclick="makePayment()">Pay Now</button>
+      <button class="btn ghost" onclick="exportCSV()">Export CSV</button>
+    </div>
+    <div id="payMsg" class="small" style="margin-top:8px"></div>
+  </div>
+
+  <!-- PAYMENT HISTORY -->
+  <div class="card">
+    <h3>Payment History</h3>
+    <div id="stats" class="small" style="margin-bottom:8px">Loading summary...</div>
+
+    <div id="tableWrap">
+      <table aria-live="polite">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Purpose</th>
+            <th>Amount (₹)</th>
+            <th>Ref</th>
+            <th>Status</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody id="paymentsBody">
+          <tr><td colspan="6" class="small">Loading payments...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  // AUTH + ROLE CHECK
+  const token = localStorage.getItem('osn_token');
+  const user  = JSON.parse(localStorage.getItem('osn_user') || '{}');
+  if(!token || user.role !== 'user'){
+    window.location.href = '../index.html';
+  }
+
+  let PAYMENTS = [];
+
+  async function loadPayments(){
+    const body = document.getElementById('paymentsBody');
+    body.innerHTML = `<tr><td colspan="6" class="small">Loading payments...</td></tr>`;
+    try{
+      const res = await fetch('/api/user/payments/' + user.id, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if(!res.ok) throw new Error('Failed to load');
+      const data = await res.json();
+      PAYMENTS = Array.isArray(data) ? data : [];
+      renderPayments(PAYMENTS);
+      updateStats(PAYMENTS);
+    }catch(err){
+      body.innerHTML = `<tr><td colspan="6" class="empty">Unable to load payments — try again later.</td></tr>`;
+      console.error(err);
+    }
+  }
+
+  function renderPayments(list){
+    const body = document.getElementById('paymentsBody');
+    if(!list || list.length === 0){
+      body.innerHTML = `<tr><td colspan="6" class="empty">No payments found.</td></tr>`;
+      return;
+    }
+
+    body.innerHTML = list.map(p => {
+      const date = new Date(p.created_at || p.createdAt || p.date).toLocaleString();
+      const status = (p.status||'').toLowerCase();
+      return `
+        <tr>
+          <td>${p.id}</td>
+          <td>${escapeHtml(p.purpose)}</td>
+          <td>${Number(p.amount||0).toFixed(2)}</td>
+          <td>${escapeHtml(p.reference||'')}</td>
+          <td>${escapeHtml(status)}</td>
+          <td>${date}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function updateStats(list){
+    const total = list.length;
+    const sum = list.reduce((s,x)=> s + Number(x.amount||0), 0);
+    document.getElementById('stats').innerText = `Total payments: ${total} • Total spent: ₹${sum.toFixed(2)}`;
+  }
+
+  async function makePayment(){
+    const purpose = document.getElementById('purpose').value;
+    const amount = Number(document.getElementById('amount').value);
+    const reference = document.getElementById('reference').value.trim();
+    const msg = document.getElementById('payMsg');
+    msg.innerText = '';
+
+    if(!amount || amount <= 0){ msg.innerText = 'Enter valid amount'; return; }
+
+    // create payment (backend should accept and store)
+    try{
+      const res = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({
+          user_id: user.id,
+          amount,
+          purpose,
+          reference,
+          status: 'pending'
+        })
+      });
+
+      const d = await res.json();
+      if(!res.ok){
+        msg.innerText = d.message || 'Payment failed';
+        return;
+      }
+
+      msg.innerText = 'Payment created — processing. (Simulated)';
+      // refresh list
+      loadPayments();
+      // clear inputs
+      document.getElementById('amount').value = '';
+      document.getElementById('reference').value = '';
+    }catch(err){
+      console.error(err);
+      msg.innerText = 'Server error';
+    }
+  }
+
+  // Export CSV for user's payments
+  function exportCSV(){
+    if(!PAYMENTS || PAYMENTS.length===0) return alert('No payments to export');
+    const rows = [['id','purpose','amount','reference','status','date']];
+    for(const p of PAYMENTS){
+      rows.push([p.id, p.purpose, p.amount, p.reference, p.status, p.created_at]);
+    }
+    const csv = rows.map(r => r.map(c => `"${String(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'my-payments.csv'; a.click(); URL.revokeObjectURL(url);
+  }
+
+  function escapeHtml(s){ return String(s||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+  function logout(){ localStorage.removeItem('osn_token'); localStorage.removeItem('osn_user'); window.location.href='../index.html'; }
+
+  // init
+  loadPayments();
+</script>
+</body>
+</html>

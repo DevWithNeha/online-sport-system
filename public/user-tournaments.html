@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OSN – Tournaments</title>
+
+<style>
+body{
+    margin:0;
+    font-family:"Segoe UI",Arial;
+    background:#f3f6fa;
+    display:flex;
+}
+
+/* SIDEBAR */
+.sidebar{
+    width:230px;
+    height:100vh;
+    background:#0f172a;
+    color:white;
+    position:fixed;
+    top:0;left:0;
+    padding:20px 0;
+}
+.sidebar h2{text-align:center;margin-bottom:20px;}
+.sidebar a{
+    display:block;
+    padding:12px 20px;
+    color:#cbd5e1;
+    text-decoration:none;
+}
+.sidebar a:hover{background:#1e293b;color:white;}
+
+/* MAIN CONTENT */
+.main{
+    margin-left:230px;
+    padding:22px;
+    width:100%;
+}
+.topbar{
+    background:white;
+    padding:16px;
+    border-radius:10px;
+    font-size:22px;
+    font-weight:600;
+    box-shadow:0 4px 20px rgba(0,0,0,0.08);
+    margin-bottom:20px;
+}
+
+/* TOURNAMENT CARD */
+.grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+    gap:20px;
+}
+.card{
+    background:white;
+    padding:18px;
+    border-radius:12px;
+    box-shadow:0 4px 14px rgba(0,0,0,0.08);
+}
+.card h3{margin:0;color:#0f172a;}
+.small{color:#64748b;margin:6px 0 10px;}
+.btn{
+    padding:10px 14px;
+    border:none;
+    border-radius:8px;
+    font-size:15px;
+    background:#2563eb;
+    color:white;
+    cursor:pointer;
+    font-weight:600;
+}
+.btn:hover{background:#1e40af;}
+.btn.disabled{
+    background:#94a3b8;
+    cursor:not-allowed;
+}
+</style>
+</head>
+
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+    <h2>OSN User</h2>
+    <a href="user-dashboard.html">🏠 Dashboard</a>
+    <a href="user-tournaments.html">🏆 Tournaments</a>
+    <a href="user-teams.html">👥 My Teams</a>
+    <a href="user-bookings.html">📅 Ground Booking</a>
+    <a href="user-payments.html">💳 Payments</a>
+    <a href="user-profile.html">🙍 Profile</a>
+    <a href="#" onclick="logout()">🚪 Logout</a>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="main">
+    <div class="topbar">All Tournaments</div>
+
+    <div id="list" class="grid">Loading tournaments...</div>
+</div>
+
+<script>
+const token = localStorage.getItem("osn_token");
+const user = JSON.parse(localStorage.getItem("osn_user") || "{}");
+
+if(!token || user.role !== "user"){
+    window.location.href = "../index.html";
+}
+
+async function loadTournaments(){
+    const box = document.getElementById("list");
+
+    let res = await fetch("/api/tournaments");
+    let data = await res.json();
+
+    let joinedRes = await fetch("/api/user/tournaments/" + user.id);
+    let joinedList = await joinedRes.json();
+
+    box.innerHTML = data.map(t => {
+        const isJoined = joinedList.some(j => j.tournament_id === t.id);
+
+        return `
+        <div class="card">
+            <h3>${t.name}</h3>
+            <div class="small">${t.sport} • ${t.start_date} → ${t.end_date}</div>
+            <div class="small">Entry Fee: ₹${t.entry_fee}</div>
+
+            ${
+                isJoined 
+                ? `<button class="btn disabled">Joined ✔</button>`
+                : `<button class="btn" onclick="joinTournament(${t.id})">Join Tournament</button>`
+            }
+        </div>
+        `;
+    }).join("");
+}
+
+async function joinTournament(tid){
+    if(!confirm("Confirm to join this tournament?")) return;
+
+    let res = await fetch("/api/tournament-register", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body:JSON.stringify({
+            user_id:user.id,
+            tournament_id:tid
+        })
+    });
+
+    let data = await res.json();
+
+    if(res.ok){
+        alert("Successfully joined!");
+        loadTournaments();
+    } else {
+        alert(data.message || "Error joining");
+    }
+}
+
+function logout(){
+    localStorage.removeItem("osn_token");
+    localStorage.removeItem("osn_user");
+    window.location.href="../index.html";
+}
+
+loadTournaments();
+</script>
+
+</body>
+</html>

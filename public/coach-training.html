@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>OSN – Coach Training</title>
+<style>
+body{margin:0;font-family:"Segoe UI",Arial;background:#f4f7fa;display:flex}
+/* SIDEBAR */
+.sidebar{width:230px;height:100vh;background:#1e293b;color:white;position:fixed;top:0;left:0;padding:20px 0}
+.sidebar h2{text-align:center;margin-bottom:20px}
+.sidebar a{display:block;padding:12px 20px;color:#cbd5e1;text-decoration:none}
+.sidebar a:hover{background:#0f172a;color:white}
+
+/* MAIN */
+.main{margin-left:230px;padding:22px;width:100%}
+.topbar{background:white;padding:16px;border-radius:10px;font-size:22px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,0.08);margin-bottom:20px}
+
+/* TRAINING LIST */
+.card{background:white;padding:20px;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,0.08);margin-bottom:20px}
+.item{padding:12px 0;border-bottom:1px solid #eee}
+.item:last-child{border-bottom:none}
+.small{color:#64748b;font-size:14px}
+input,select{padding:10px;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:12px;width:100%}
+.btn{padding:8px 12px;border:none;border-radius:8px;background:#2563eb;color:white;font-weight:600;cursor:pointer;margin-top:6px}
+.btn:hover{background:#1e40af}
+.btn.remove{background:#ef4444}
+.btn.remove:hover{background:#b91c1c}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <h2>OSN Coach</h2>
+  <a href="coach-dashboard.html">🏠 Dashboard</a>
+  <a href="coach-team.html">👥 Team</a>
+  <a href="coach-training.html">💪 Training</a>
+  <a href="coach-matches.html">🏆 Matches</a>
+  <a href="coach-analytics.html">📊 Analytics</a>
+  <a href="coach-profile.html">🙍 Profile</a>
+  <a href="#" onclick="logout()">🚪 Logout</a>
+</div>
+
+<div class="main">
+  <div class="topbar">Training Sessions</div>
+
+  <div class="card">
+    <h3>Add New Training</h3>
+    <input id="date" type="date" placeholder="Date">
+    <input id="activity" placeholder="Activity Description">
+    <button class="btn" onclick="addTraining()">Add Training</button>
+    <div id="msg" class="small" style="margin-top:8px"></div>
+  </div>
+
+  <div class="card">
+    <h3>All Trainings</h3>
+    <div id="trainingList">Loading trainings...</div>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem("osn_token");
+const coach = JSON.parse(localStorage.getItem("osn_user") || "{}");
+
+if(!token || coach.role !== "coach"){
+    window.location.href="../index.html";
+}
+
+// Load trainings
+async function loadTraining(){
+    const box = document.getElementById("trainingList");
+    box.innerHTML = "Loading...";
+    try{
+        const res = await fetch("/api/coach/training/" + coach.id, {headers:{Authorization:"Bearer "+token}});
+        const data = await res.json();
+        if(!data || data.length===0){
+            box.innerHTML = "<div class='small'>No trainings yet.</div>";
+            return;
+        }
+        box.innerHTML = data.map(t=>`
+            <div class="item">
+                <b>${t.date}</b> — ${t.activity} 
+                <button class="btn remove" onclick="removeTraining(${t.id})">Remove</button>
+            </div>
+        `).join("");
+    }catch(err){
+        console.error(err);
+        box.innerHTML = "<div class='small'>Error loading trainings.</div>";
+    }
+}
+
+// Add training
+async function addTraining(){
+    const date = document.getElementById("date").value;
+    const activity = document.getElementById("activity").value.trim();
+    const msg = document.getElementById("msg");
+    msg.innerText = "";
+    if(!date || !activity){ msg.innerText="Fill all fields."; return; }
+
+    try{
+        const res = await fetch("/api/coach/training/add", {
+            method:"POST",
+            headers:{ "Content-Type":"application/json", Authorization:"Bearer "+token },
+            body: JSON.stringify({ coach_id:coach.id,date,activity })
+        });
+        const data = await res.json();
+        if(res.ok){
+            msg.innerText="Training added ✔";
+            document.getElementById("date").value="";
+            document.getElementById("activity").value="";
+            loadTraining();
+        } else {
+            msg.innerText = data.message || "Error adding training.";
+        }
+    }catch(err){
+        console.error(err);
+        msg.innerText="Server error";
+    }
+}
+
+// Remove training
+async function removeTraining(id){
+    if(!confirm("Remove this training?")) return;
+    try{
+        const res = await fetch("/api/coach/training/remove", {
+            method:"POST",
+            headers:{ "Content-Type":"application/json", Authorization:"Bearer "+token },
+            body: JSON.stringify({ id })
+        });
+        if(res.ok){ loadTraining(); alert("Training removed."); }
+        else { const d=await res.json(); alert(d.message||"Error removing"); }
+    }catch(err){ console.error(err); alert("Server error"); }
+}
+
+function logout(){
+    localStorage.removeItem("osn_token");
+    localStorage.removeItem("osn_user");
+    window.location.href="../index.html";
+}
+
+// Init
+loadTraining();
+</script>
+
+</body>
+</html>

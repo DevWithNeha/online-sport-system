@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>User Dashboard - OSN</title>
+
+<style>
+body{
+    margin:0;
+    background:#f4f7fa;
+    font-family:"Segoe UI",Arial;
+    display:flex;
+}
+
+/* SIDEBAR */
+.sidebar{
+    width:230px;
+    height:100vh;
+    background:#0f172a;
+    color:white;
+    position:fixed;
+    left:0;
+    top:0;
+    padding:20px 0;
+}
+.sidebar h2{
+    text-align:center;
+    margin-bottom:20px;
+}
+.sidebar a{
+    display:block;
+    padding:12px 20px;
+    text-decoration:none;
+    color:#cbd5e1;
+    font-size:16px;
+}
+.sidebar a:hover{
+    background:#1e293b;
+    color:white;
+}
+
+/* MAIN */
+.main{
+    margin-left:230px;
+    padding:22px;
+    width:100%;
+}
+.topbar{
+    background:white;
+    padding:16px;
+    border-radius:10px;
+    font-size:22px;
+    font-weight:600;
+    box-shadow:0 4px 20px rgba(0,0,0,0.08);
+    margin-bottom:20px;
+}
+
+/* CARDS */
+.cards{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:20px;
+}
+.card{
+    background:white;
+    padding:20px;
+    border-radius:12px;
+    box-shadow:0 6px 20px rgba(0,0,0,0.08);
+}
+.card h3{
+    margin:0;
+    color:#0f172a;
+}
+.card .num{
+    font-size:30px;
+    font-weight:700;
+    margin-top:10px;
+}
+
+/* LIST */
+.list{
+    margin-top:20px;
+    background:white;
+    padding:20px;
+    border-radius:12px;
+    box-shadow:0 6px 20px rgba(0,0,0,0.08);
+}
+.item{
+    padding:12px 0;
+    border-bottom:1px solid #eee;
+}
+.item:last-child{
+    border-bottom:none;
+}
+</style>
+</head>
+
+<body>
+
+<div class="sidebar">
+    <h2>OSN User</h2>
+    <a href="user-dashboard.html">🏠 Dashboard</a>
+    <a href="tournaments.html">🏆 Tournaments</a>
+    <a href="teams.html">👥 My Teams</a>
+    <a href="bookings.html">📅 Ground Booking</a>
+    <a href="payments.html">💳 Payments</a>
+    <a href="profile.html">🙍 Profile</a>
+    <a href="#" onclick="logout()">🚪 Logout</a>
+</div>
+
+<div class="main">
+    <div class="topbar" id="welcome">Welcome</div>
+
+    <div class="cards">
+        <div class="card">
+            <h3>Total Tournaments</h3>
+            <div class="num" id="utournaments">—</div>
+        </div>
+        <div class="card">
+            <h3>My Bookings</h3>
+            <div class="num" id="ubookings">—</div>
+        </div>
+        <div class="card">
+            <h3>My Teams</h3>
+            <div class="num" id="uteams">—</div>
+        </div>
+    </div>
+
+    <div class="list">
+        <h3>Upcoming Tournaments</h3>
+        <div id="uplist">Loading...</div>
+    </div>
+</div>
+
+<script>
+const token = localStorage.getItem("osn_token");
+const user = JSON.parse(localStorage.getItem("osn_user") || "{}");
+
+if(!token || user.role !== "user"){
+    window.location.href = "../index.html";
+}
+
+document.getElementById("welcome").innerText = "Welcome, " + user.name;
+
+// LOAD DASHBOARD DATA
+async function loadUserDashboard(){
+    // Tournaments
+    let r1 = await fetch("/api/tournaments");
+    let t = await r1.json();
+    document.getElementById("utournaments").innerText = t.length;
+
+    // Teams
+    let r2 = await fetch("/api/user/teams/" + user.id);
+    let teams = await r2.json();
+    document.getElementById("uteams").innerText = teams.length;
+
+    // Bookings
+    let r3 = await fetch("/api/user/bookings/" + user.id);
+    let b = await r3.json();
+    document.getElementById("ubookings").innerText = b.length;
+
+    // List
+    document.getElementById("uplist").innerHTML =
+    t.slice(0,5).map(x => `
+        <div class="item">${x.name} — ${x.start_date}</div>
+    `).join("");
+}
+
+loadUserDashboard();
+
+function logout(){
+    localStorage.removeItem("osn_token");
+    localStorage.removeItem("osn_user");
+    window.location.href="../index.html";
+}
+</script>
+
+</body>
+</html>

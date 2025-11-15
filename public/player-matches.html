@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>OSN – My Matches</title>
+<style>
+body{margin:0;font-family:"Segoe UI",Arial;background:#f4f7fa;display:flex}
+.sidebar{width:230px;height:100vh;background:#1e293b;color:white;position:fixed;top:0;left:0;padding:20px 0}
+.sidebar h2{text-align:center;margin-bottom:20px}
+.sidebar a{display:block;padding:12px 20px;color:#cbd5e1;text-decoration:none}
+.sidebar a:hover{background:#0f172a;color:white}
+.main{margin-left:230px;padding:22px;width:100%}
+.topbar{background:white;padding:16px;border-radius:10px;font-size:22px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,0.08);margin-bottom:20px}
+.match-card{background:white;padding:18px;border-radius:12px;margin-bottom:16px;box-shadow:0 4px 14px rgba(0,0,0,0.08)}
+.match-row{display:flex;justify-content:space-between;font-weight:600;font-size:16px;margin-bottom:4px}
+.status{display:inline-block;padding:4px 8px;border-radius:8px;color:white;font-size:12px}
+.upcoming{background:#2563eb}
+.live{background:#ef4444}
+.completed{background:#16a34a}
+.small{color:#64748b;font-size:13px}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <h2>OSN Player</h2>
+  <a href="player-dashboard.html">🏠 Dashboard</a>
+  <a href="player-matches.html">🏆 My Matches</a>
+  <a href="player-stats.html">📊 Stats</a>
+  <a href="player-training.html">💪 Training</a>
+  <a href="player-achievements.html">🏅 Achievements</a>
+  <a href="player-profile.html">🙍 Profile</a>
+  <a href="#" onclick="logout()">🚪 Logout</a>
+</div>
+
+<div class="main">
+  <div class="topbar">My Matches</div>
+  <div id="matches">Loading matches...</div>
+</div>
+
+<script>
+const token = localStorage.getItem("osn_token");
+const player = JSON.parse(localStorage.getItem("osn_user") || "{}");
+
+if(!token || player.role !== "player"){
+    window.location.href="../index.html";
+}
+
+async function loadMatches(){
+    const box = document.getElementById("matches");
+    box.innerHTML = "Loading matches...";
+    try{
+        let res = await fetch("/api/player/matches/" + player.id, {
+            headers:{ "Authorization":"Bearer "+token }
+        });
+        let data = await res.json();
+
+        if(!data || data.length===0){
+            box.innerHTML = "No matches found.";
+            return;
+        }
+
+        box.innerHTML = data.map(m => `
+            <div class="match-card">
+                <div class="match-row">
+                    <span>${m.tournament}</span>
+                    <span class="status ${m.status}">${m.status.toUpperCase()}</span>
+                </div>
+                <div class="match-row">
+                    <span>${m.team_a} vs ${m.team_b}</span>
+                    <span>${m.date}</span>
+                </div>
+                <div class="small">Score: ${m.score_a || "-"} - ${m.score_b || "-"}</div>
+            </div>
+        `).join("");
+
+    }catch(err){
+        console.error(err);
+        box.innerHTML = "Error loading matches.";
+    }
+}
+
+// INIT
+loadMatches();
+
+function logout(){
+    localStorage.removeItem("osn_token");
+    localStorage.removeItem("osn_user");
+    window.location.href="../index.html";
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OSN - Register</title>
+
+<style>
+body{
+    margin:0;
+    font-family: "Segoe UI", Arial, sans-serif;
+    background:#eef2f7;
+}
+header{
+    background: linear-gradient(90deg, #0f172a, #1e3a8a);
+    padding:16px 24px;
+    color:white;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+}
+header .logo{
+    font-size:22px;font-weight:600;
+}
+header nav a{
+    color:white;text-decoration:none;margin-left:18px;font-size:16px;font-weight:500;
+}
+
+.container{
+    max-width:500px;
+    margin:50px auto;
+    background:white;
+    padding:32px 28px;
+    border-radius:12px;
+    box-shadow:0 12px 40px rgba(0,0,0,0.08);
+}
+h2{text-align:center;color:#1e3a8a;}
+label{font-weight:600;margin-bottom:4px;display:block;}
+input,select{
+    width:100%;padding:12px;margin-bottom:16px;
+    border-radius:8px;border:1px solid #cbd5e1;
+}
+button{
+    width:100%;padding:12px;background:#2563eb;color:white;border:none;
+    border-radius:8px;font-size:17px;font-weight:600;
+}
+.error{
+    display:none;background:#fee2e2;color:#b91c1c;padding:10px;border-radius:8px;margin-bottom:14px;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+    <div class="logo">Online Sports Network</div>
+    <nav>
+        <a href="index.html">Login</a>
+        <a href="register.html">Register</a>
+    </nav>
+</header>
+
+<div class="container">
+    <h2>Create Account</h2>
+    <div id="error" class="error"></div>
+
+    <label>Name</label>
+    <input id="name">
+
+    <label>Email</label>
+    <input id="email">
+
+    <label>Password</label>
+    <input type="password" id="password">
+
+    <label>Role</label>
+    <select id="role">
+        <option value="user">User</option>
+        <option value="player">Player</option>
+        <option value="coach">Coach</option>
+        <option value="admin">Admin</option> 
+    </select>
+
+    <button onclick="registerUser()">REGISTER</button>
+</div>
+
+<script>
+async function registerUser(){
+    const nameVal = document.getElementById("name").value.trim();
+    const emailVal = document.getElementById("email").value.trim();
+    const passwordVal = document.getElementById("password").value.trim();
+    const roleVal = document.getElementById("role").value;
+    const err = document.getElementById("error");
+
+    if(!nameVal || !emailVal || !passwordVal){
+        err.style.display="block";
+        err.innerText="Please fill all fields";
+        return;
+    }
+
+    const res = await fetch("/api/auth/register", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+            name: nameVal,
+            email: emailVal,
+            password: passwordVal,
+            role: roleVal
+        })
+    });
+
+    const data = await res.json();
+
+    if(!res.ok){
+        err.style.display="block";
+        err.innerText = data.message || "Registration failed!";
+        return;
+    }
+
+    localStorage.setItem("osn_token", data.token);
+    localStorage.setItem("osn_user", JSON.stringify(data.user));
+
+    window.location.href="index.html";
+}
+</script>
+
+
+</body>
+</html>

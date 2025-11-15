@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>OSN – Coach Teams</title>
+<style>
+body{margin:0;font-family:"Segoe UI",Arial;background:#f4f7fa;display:flex}
+/* SIDEBAR */
+.sidebar{width:230px;height:100vh;background:#1e293b;color:white;position:fixed;top:0;left:0;padding:20px 0}
+.sidebar h2{text-align:center;margin-bottom:20px}
+.sidebar a{display:block;padding:12px 20px;color:#cbd5e1;text-decoration:none}
+.sidebar a:hover{background:#0f172a;color:white}
+
+/* MAIN */
+.main{margin-left:230px;padding:22px;width:100%}
+.topbar{background:white;padding:16px;border-radius:10px;font-size:22px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,0.08);margin-bottom:20px}
+
+/* TEAMS LIST */
+.card{background:white;padding:20px;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,0.08);margin-bottom:20px}
+.team-box{border:1px solid #e5e7eb;padding:12px;margin-bottom:12px;border-radius:10px}
+.team-name{font-weight:700;color:#0f172a;font-size:18px}
+.player-list{margin-top:8px;padding-left:16px}
+.player-item{padding:4px 0;border-bottom:1px solid #eee}
+.player-item:last-child{border-bottom:none}
+.btn{padding:6px 10px;border:none;border-radius:6px;background:#2563eb;color:white;font-weight:600;cursor:pointer;margin-top:6px}
+.btn:hover{background:#1e40af}
+.btn.remove{background:#ef4444}
+.btn.remove:hover{background:#b91c1c}
+.small{color:#64748b;font-size:13px}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <h2>OSN Coach</h2>
+  <a href="coach-dashboard.html">🏠 Dashboard</a>
+  <a href="coach-team.html">👥 Team</a>
+  <a href="coach-training.html">💪 Training</a>
+  <a href="coach-matches.html">🏆 Matches</a>
+  <a href="coach-analytics.html">📊 Analytics</a>
+  <a href="coach-profile.html">🙍 Profile</a>
+  <a href="#" onclick="logout()">🚪 Logout</a>
+</div>
+
+<div class="main">
+  <div class="topbar">My Teams</div>
+
+  <div id="teamsList">Loading teams...</div>
+</div>
+
+<script>
+const token = localStorage.getItem("osn_token");
+const coach = JSON.parse(localStorage.getItem("osn_user") || "{}");
+
+if(!token || coach.role !== "coach"){
+    window.location.href="../index.html";
+}
+
+// Load Teams
+async function loadTeams(){
+    const box = document.getElementById("teamsList");
+    box.innerHTML = "Loading...";
+
+    try{
+        const res = await fetch("/api/coach/teams/" + coach.id, {headers:{Authorization:"Bearer "+token}});
+        const teams = await res.json();
+
+        if(!teams || teams.length===0){
+            box.innerHTML = "<div class='small'>No teams available.</div>";
+            return;
+        }
+
+        box.innerHTML = teams.map(t=>`
+            <div class="card team-box">
+                <div class="team-name">${t.name}</div>
+                <div class="small">Team ID: ${t.id}</div>
+                <div class="player-list">
+                    ${t.members && t.members.length>0 ? t.members.map(p=>`
+                        <div class="player-item">${p.name} <button class="btn remove" onclick="removePlayer(${t.id},${p.id})">Remove</button></div>
+                    `).join("") : "<div class='small'>No players yet.</div>"}
+                </div>
+            </div>
+        `).join("");
+
+    }catch(err){
+        console.error(err);
+        box.innerHTML = "<div class='small'>Error loading teams.</div>";
+    }
+}
+
+// Remove player
+async function removePlayer(teamId, playerId){
+    if(!confirm("Remove this player?")) return;
+    try{
+        const res = await fetch("/api/coach/team/remove-player", {
+            method:"POST",
+            headers:{ "Content-Type":"application/json", Authorization:"Bearer "+token },
+            body: JSON.stringify({ team_id:teamId, player_id:playerId })
+        });
+        if(res.ok){
+            alert("Player removed.");
+            loadTeams();
+        } else {
+            const d = await res.json();
+            alert(d.message || "Error removing player.");
+        }
+    }catch(err){
+        console.error(err);
+        alert("Server error");
+    }
+}
+
+function logout(){
+    localStorage.removeItem("osn_token");
+    localStorage.removeItem("osn_user");
+    window.location.href="../index.html";
+}
+
+// Init
+loadTeams();
+</script>
+
+</body>
+</html>

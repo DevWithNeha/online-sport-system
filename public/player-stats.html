@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>OSN – Player Stats</title>
+<style>
+body{margin:0;font-family:"Segoe UI",Arial;background:#f4f7fa;display:flex}
+/* SIDEBAR */
+.sidebar{width:230px;height:100vh;background:#1e293b;color:white;position:fixed;top:0;left:0;padding:20px 0}
+.sidebar h2{text-align:center;margin-bottom:20px}
+.sidebar a{display:block;padding:12px 20px;color:#cbd5e1;text-decoration:none}
+.sidebar a:hover{background:#0f172a;color:white}
+/* MAIN */
+.main{margin-left:230px;padding:22px;width:100%}
+.topbar{background:white;padding:16px;border-radius:10px;font-size:22px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,0.08);margin-bottom:20px}
+/* CARDS */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px}
+.card{background:white;padding:20px;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,0.08)}
+.card h3{margin:0;color:#0f172a;font-weight:600}
+.card .num{font-size:30px;font-weight:700;margin-top:10px}
+/* LIST */
+.list{margin-top:20px;background:white;padding:20px;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,0.08)}
+.item{padding:12px 0;border-bottom:1px solid #eee}
+.item:last-child{border-bottom:none}
+.small{color:#64748b;font-size:14px}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <h2>OSN Player</h2>
+  <a href="player-dashboard.html">🏠 Dashboard</a>
+  <a href="player-matches.html">🏆 My Matches</a>
+  <a href="player-stats.html">📊 Stats</a>
+  <a href="player-training.html">💪 Training</a>
+  <a href="player-achievements.html">🏅 Achievements</a>
+  <a href="player-profile.html">🙍 Profile</a>
+  <a href="#" onclick="logout()">🚪 Logout</a>
+</div>
+
+<div class="main">
+  <div class="topbar">Performance Stats</div>
+
+  <div class="cards">
+      <div class="card">
+          <h3>Matches Played</h3>
+          <div class="num" id="matchesPlayed">—</div>
+      </div>
+      <div class="card">
+          <h3>Wins</h3>
+          <div class="num" id="wins">—</div>
+      </div>
+      <div class="card">
+          <h3>Losses</h3>
+          <div class="num" id="losses">—</div>
+      </div>
+      <div class="card">
+          <h3>Points / Goals</h3>
+          <div class="num" id="points">—</div>
+      </div>
+  </div>
+
+  <div class="list">
+      <h3>Match History</h3>
+      <div id="history">Loading history...</div>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem("osn_token");
+const player = JSON.parse(localStorage.getItem("osn_user") || "{}");
+
+if(!token || player.role !== "player"){
+    window.location.href="../index.html";
+}
+
+async function loadPlayerStats(){
+    const matchesPlayedEl = document.getElementById("matchesPlayed");
+    const winsEl = document.getElementById("wins");
+    const lossesEl = document.getElementById("losses");
+    const pointsEl = document.getElementById("points");
+    const historyEl = document.getElementById("history");
+
+    try{
+        let res = await fetch("/api/player/stats/" + player.id);
+        let data = await res.json();
+
+        matchesPlayedEl.innerText = data.matches || 0;
+        winsEl.innerText = data.wins || 0;
+        lossesEl.innerText = data.losses || 0;
+        pointsEl.innerText = data.points || 0;
+
+        // Match history
+        if(data.history && data.history.length>0){
+            historyEl.innerHTML = data.history.map(m=>`
+                <div class="item">
+                    ${m.date} — ${m.tournament} — ${m.opponent} — ${m.result} — Score: ${m.score}
+                </div>
+            `).join("");
+        } else {
+            historyEl.innerHTML = "<div class='small'>No match history found.</div>";
+        }
+
+    }catch(err){
+        console.error(err);
+        historyEl.innerHTML = "<div class='small'>Error loading stats.</div>";
+    }
+}
+
+function logout(){
+    localStorage.removeItem("osn_token");
+    localStorage.removeItem("osn_user");
+    window.location.href="../index.html";
+}
+
+loadPlayerStats();
+</script>
+
+</body>
+</html>

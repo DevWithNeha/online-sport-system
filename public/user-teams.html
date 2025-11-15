@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OSN – My Teams</title>
+
+<style>
+body{
+    margin:0;
+    font-family:"Segoe UI",Arial;
+    background:#f3f6fa;
+    display:flex;
+}
+
+/* SIDEBAR */
+.sidebar{
+    width:230px;
+    height:100vh;
+    background:#0f172a;
+    color:white;
+    position:fixed;
+    top:0;left:0;
+    padding:20px 0;
+}
+.sidebar h2{text-align:center;margin-bottom:20px;}
+.sidebar a{
+    display:block;
+    padding:12px 20px;
+    color:#cbd5e1;
+    text-decoration:none;
+}
+.sidebar a:hover{background:#1e293b;color:white;}
+
+/* MAIN */
+.main{
+    margin-left:230px;
+    padding:22px;
+    width:100%;
+}
+
+.topbar{
+    background:white;
+    padding:16px;
+    border-radius:10px;
+    font-size:22px;
+    font-weight:600;
+    box-shadow:0 4px 20px rgba(0,0,0,0.08);
+    margin-bottom:20px;
+}
+
+/* CARDS & FORMS */
+.card{
+    background:white;
+    padding:20px;
+    border-radius:12px;
+    box-shadow:0 6px 20px rgba(0,0,0,0.08);
+    margin-bottom:20px;
+}
+
+input{
+    width:100%;
+    padding:12px;
+    border-radius:8px;
+    border:1px solid #cbd5e1;
+    margin-bottom:10px;
+}
+
+.btn{
+    padding:10px 14px;
+    border:none;
+    border-radius:8px;
+    font-size:15px;
+    background:#2563eb;
+    color:white;
+    cursor:pointer;
+    font-weight:600;
+}
+.btn:hover{background:#1e40af;}
+.btn.leave{background:#ef4444;}
+.btn.leave:hover{background:#b91c1c;}
+
+/* TEAM LIST */
+.team-box{
+    padding:18px;
+    background:white;
+    border-radius:12px;
+    border:1px solid #e5e7eb;
+    margin-bottom:16px;
+}
+.team-name{
+    font-size:20px;
+    font-weight:700;
+    color:#0f172a;
+}
+.small{color:#64748b;margin-top:4px;}
+.members{margin-top:10px;border-top:1px solid #e2e8f0;padding-top:10px;}
+</style>
+</head>
+
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+    <h2>OSN User</h2>
+    <a href="user-dashboard.html">🏠 Dashboard</a>
+    <a href="user-tournaments.html">🏆 Tournaments</a>
+    <a href="user-teams.html">👥 My Teams</a>
+    <a href="user-bookings.html">📅 Ground Booking</a>
+    <a href="user-payments.html">💳 Payments</a>
+    <a href="user-profile.html">🙍 Profile</a>
+    <a href="user-live-score.html">🎥 Live Score</a>
+    <a href="#" onclick="logout()">🚪 Logout</a>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+    <div class="topbar">My Teams</div>
+
+    <!-- CREATE TEAM -->
+    <div class="card">
+        <h3>Create New Team</h3>
+        <input id="teamName" placeholder="Team Name">
+        <button class="btn" onclick="createTeam()">Create Team</button>
+        <div id="msg1" style="margin-top:6px;color:#0f172a;"></div>
+    </div>
+
+    <!-- JOIN TEAM -->
+    <div class="card">
+        <h3>Join Team</h3>
+        <input id="joinId" placeholder="Enter Team ID">
+        <button class="btn" onclick="joinTeam()">Join</button>
+        <div id="msg2" style="margin-top:6px;color:#0f172a;"></div>
+    </div>
+
+    <!-- MY TEAMS -->
+    <div class="card">
+        <h3>Your Teams</h3>
+        <div id="teamList">Loading Teams...</div>
+    </div>
+</div>
+
+<script>
+const token = localStorage.getItem("osn_token");
+const user = JSON.parse(localStorage.getItem("osn_user") || "{}");
+
+if(!token || user.role !== "user"){
+    window.location.href = "../index.html";
+}
+
+// LOAD TEAMS
+async function loadTeams(){
+    let res = await fetch("/api/user/teams/" + user.id);
+    let data = await res.json();
+
+    let box = document.getElementById("teamList");
+
+    if(data.length === 0){
+        box.innerHTML = "You have not joined or created any team yet.";
+        return;
+    }
+
+    box.innerHTML = data.map(t => `
+        <div class="team-box">
+            <div class="team-name">${t.team_name}</div>
+            <div class="small">Team ID: ${t.id}</div>
+            <div class="small">Created: ${t.created_at}</div>
+
+            <div class="members">
+                <b>Members:</b><br>
+                ${t.members ? t.members : "No members yet"}
+            </div>
+
+            <button class="btn leave" onclick="leaveTeam(${t.id})">Leave Team</button>
+        </div>
+    `).join("");
+}
+
+// CREATE TEAM
+async function createTeam(){
+    let name = document.getElementById("teamName").value.trim();
+    if(!name){
+        document.getElementById("msg1").innerText = "Enter a valid team name.";
+        return;
+    }
+
+    let res = await fetch("/api/team-create", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body:JSON.stringify({
+            team_name:name,
+            owner_id:user.id
+        })
+    });
+
+    let data = await res.json();
+
+    if(res.ok){
+        document.getElementById("msg1").innerText = "Team created successfully!";
+        loadTeams();
+    } else {
+        document.getElementById("msg1").innerText = data.message || "Error creating team.";
+    }
+}
+
+// JOIN TEAM
+async function joinTeam(){
+    let id = document.getElementById("joinId").value.trim();
+    if(!id){
+        document.getElementById("msg2").innerText = "Enter a valid team ID.";
+        return;
+    }
+
+    let res = await fetch("/api/team-join", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body:JSON.stringify({
+            team_id:id,
+            user_id:user.id
+        })
+    });
+
+    let data = await res.json();
+
+    if(res.ok){
+        document.getElementById("msg2").innerText = "Joined team successfully!";
+        loadTeams();
+    } else {
+        document.getElementById("msg2").innerText = data.message || "Error joining team.";
+    }
+}
+
+// LEAVE TEAM
+async function leaveTeam(team_id){
+    if(!confirm("Are you sure you want to leave this team?")) return;
+
+    let res = await fetch("/api/team-leave", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body:JSON.stringify({
+            team_id,
+            user_id:user.id
+        })
+    });
+
+    if(res.ok){
+        alert("You left the team.");
+        loadTeams();
+    }
+}
+
+// LOGOUT
+function logout(){
+    localStorage.removeItem("osn_token");
+    localStorage.removeItem("osn_user");
+    window.location.href="../index.html";
+}
+
+// LOAD INITIALLY
+loadTeams();
+</script>
+
+</body>
+</html>

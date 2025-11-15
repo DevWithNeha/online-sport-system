@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin - Manage Matches</title>
+
+<style>
+body {
+    margin: 0;
+    font-family: "Segoe UI", Arial;
+    background: #f1f5f9;
+}
+
+/* HEADER */
+.header {
+    background: linear-gradient(90deg,#0f172a,#1e3a8a);
+    padding: 16px 24px;
+    color: white;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+/* PAGE WRAP */
+.container {
+    max-width: 1100px;
+    margin: 20px auto;
+    padding: 20px;
+}
+
+/* CARD */
+.card {
+    background: white;
+    padding: 22px;
+    border-radius: 14px;
+    box-shadow:0 6px 20px rgba(0,0,0,0.08);
+    margin-bottom: 20px;
+}
+
+/* INPUTS */
+label {
+    display: block;
+    margin: 10px 0 4px;
+    font-weight: 600;
+}
+
+input, select {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid #cbd5e1;
+    font-size: 15px;
+    margin-bottom: 12px;
+}
+
+/* BUTTONS */
+.btn {
+    background: #2563eb;
+    color: white;
+    padding: 12px 18px;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    cursor: pointer;
+}
+.btn:hover { background: #1e40af; }
+
+.del-btn {
+    background:#ef4444;
+    padding:10px 12px;
+    border:none;
+    border-radius:8px;
+    color:white;
+    font-weight:600;
+    cursor:pointer;
+}
+.del-btn:hover { background:#b91c1c; }
+
+/* MATCH ITEMS */
+.match-item {
+    padding: 16px;
+    border:1px solid #e2e8f0;
+    border-radius:14px;
+    margin-bottom:12px;
+    background:white;
+}
+
+.score-box input {
+    width:120px;
+    margin-right:10px;
+}
+
+.match-status {
+    margin-top: 6px;
+    font-size: 13px;
+    color:#475569;
+}
+</style>
+</head>
+
+<body>
+
+<div class="header">🎯 Manage Matches</div>
+
+<div class="container">
+
+    <!-- CREATE MATCH -->
+    <div class="card">
+        <h2>Create New Match</h2>
+
+        <label>Tournament</label>
+        <select id="tournamentSelect"></select>
+
+        <label>Team A (ID)</label>
+        <input id="teamA">
+
+        <label>Team B (ID)</label>
+        <input id="teamB">
+
+        <label>Match Date & Time</label>
+        <input type="datetime-local" id="matchDate">
+
+        <button class="btn" onclick="createMatch()">Create Match</button>
+        <div id="msg" style="margin-top:10px;color:#0f172a;font-weight:600;"></div>
+    </div>
+
+    <!-- LIST MATCHES -->
+    <div class="card">
+        <h2>All Matches</h2>
+        <div id="matchList">Loading...</div>
+    </div>
+
+</div>
+
+<script>
+const token = localStorage.getItem("osn_token");
+const user  = JSON.parse(localStorage.getItem("osn_user") || "{}");
+
+// AUTH CHECK
+if (!token || user.role !== "admin") {
+    window.location.href = "index.html";
+}
+
+// LOAD TOURNAMENT LIST
+async function loadTournaments() {
+    let res = await fetch("/api/tournaments");
+    let data = await res.json();
+
+    let select = document.getElementById("tournamentSelect");
+    select.innerHTML = data.map(t => 
+        `<option value="${t.id}">${t.name} (${t.sport})</option>`
+    );
+}
+
+// CREATE MATCH
+async function createMatch() {
+    let tournament_id = document.getElementById("tournamentSelect").value;
+    let team_a = document.getElementById("teamA").value.trim();
+    let team_b = document.getElementById("teamB").value.trim();
+    let match_date = document.getElementById("matchDate").value;
+
+    if(!team_a || !team_b || !match_date){
+        document.getElementById("msg").innerText = "Fill all fields";
+        return;
+    }
+
+    let res = await fetch("/api/matches-create", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body:JSON.stringify({ tournament_id, team_a, team_b, match_date })
+    });
+
+    let data = await res.json();
+
+    if(!res.ok){
+        document.getElementById("msg").innerText = data.message || "Error creating match";
+        return;
+    }
+
+    document.getElementById("msg").innerText = "Match Created Successfully!";
+    loadMatches();
+}
+
+// LOAD MATCHES
+async function loadMatches() {
+    let res = await fetch("/api/matches");
+    let data = await res.json();
+
+    let list = document.getElementById("matchList");
+
+    list.innerHTML = data.map(m => `
+        <div class="match-item">
+            <b>${m.team_a} vs ${m.team_b}</b>
+            <div class="match-status">Tournament ID: ${m.tournament_id}</div>
+            <div class="match-status">Date: ${m.match_date}</div>
+            <div class="match-status">Status: <b>${m.status}</b></div>
+
+            <!-- SCORE UPDATE -->
+            <div class="score-box" style="margin-top:10px;">
+                <input id="a-${m.id}" placeholder="Score A" value="${m.score_a || ""}">
+                <input id="b-${m.id}" placeholder="Score B" value="${m.score_b || ""}">
+                <select id="s-${m.id}">
+                    <option value="scheduled" ${m.status==="scheduled"?"selected":""}>Scheduled</option>
+                    <option value="live" ${m.status==="live"?"selected":""}>Live</option>
+                    <option value="finished" ${m.status==="finished"?"selected":""}>Finished</option>
+                </select>
+                <button class="btn" onclick="updateMatch(${m.id})">Update</button>
+                <button class="del-btn" onclick="deleteMatch(${m.id})">Delete</button>
+            </div>
+        </div>
+    `).join("");
+}
+
+// UPDATE MATCH
+async function updateMatch(id){
+    let score_a = document.getElementById("a-"+id).value;
+    let score_b = document.getElementById("b-"+id).value;
+    let status = document.getElementById("s-"+id).value;
+
+    let res = await fetch("/api/update-score", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body:JSON.stringify({ match_id:id, score_a, score_b, status })
+    });
+
+    if(res.ok){
+        alert("Match Updated!");
+        loadMatches();
+    }
+}
+
+// DELETE MATCH
+async function deleteMatch(id){
+    if(!confirm("Delete this match?")) return;
+
+    let res = await fetch("/api/matches/" + id, { method:"DELETE" });
+
+    if(res.ok){
+        loadMatches();
+    }
+}
+
+loadTournaments();
+loadMatches();
+</script>
+
+</body>
+</html>

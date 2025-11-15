@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>OSN — Admin Users</title>
+
+<style>
+  :root{
+    --bg:#f4f7fb;
+    --card:#ffffff;
+    --muted:#64748b;
+    --accent:#2563eb;
+    --danger:#ef4444;
+  }
+  body{margin:0;font-family:Inter,Segoe UI,Arial;background:var(--bg);color:#0f172a}
+  header{background:linear-gradient(90deg,#0f172a,#1e3a8a);padding:14px 20px;color:#fff;display:flex;justify-content:space-between;align-items:center}
+  header .brand{font-weight:700}
+  header nav a{color:#fff;text-decoration:none;margin-left:12px;font-weight:600}
+  .wrap{max-width:1200px;margin:20px auto;padding:16px}
+  .top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+  .search-row{display:flex;gap:10px;align-items:center}
+  input[type="search"], select{padding:10px;border-radius:8px;border:1px solid #e6eefc;}
+  .card{background:var(--card);padding:16px;border-radius:12px;box-shadow:0 8px 24px rgba(2,6,23,0.06);margin-top:14px}
+  table{width:100%;border-collapse:collapse;margin-top:12px}
+  th,td{padding:10px;border-bottom:1px solid #eef6ff;text-align:left}
+  th{background:#fbfdff;font-weight:700;color:#0f172a}
+  .small{color:var(--muted)}
+  .actions{display:flex;gap:8px}
+  .btn{padding:8px 10px;border-radius:8px;border:none;cursor:pointer;font-weight:700}
+  .btn.block{background:#ef4444;color:#fff}
+  .btn.unblock{background:#16a34a;color:#fff}
+  .btn.delete{background:#b91c1c;color:#fff}
+  .btn.view{background:transparent;border:1px solid #94a3b8;color:#0f172a}
+  .empty{text-align:center;padding:20px;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">OSN Admin</div>
+  <nav>
+    <a href="admin.html">Dashboard</a>
+    <a href="admin-tournaments.html">Tournaments</a>
+    <a href="admin-matches.html">Matches</a>
+    <a href="admin-bookings.html">Bookings</a>
+    <a href="admin-payments.html">Payments</a>
+  </nav>
+</header>
+
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h2 style="margin:0">Manage Users</h2>
+      <div class="small" style="margin-top:6px">View, block, delete and manage system users.</div>
+    </div>
+
+    <div class="search-row">
+      <input type="search" id="q" placeholder="Search name, email, role..." oninput="applyFilters()" />
+      <select id="roleFilter" onchange="applyFilters()">
+        <option value="">All roles</option>
+        <option value="user">User</option>
+        <option value="player">Player</option>
+        <option value="coach">Coach</option>
+        <option value="admin">Admin</option>
+      </select>
+      <button class="btn view" onclick="loadUsers()">Refresh</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <table id="usersTable">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th>Registered</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+
+      <tbody id="usersBody">
+        <tr><td colspan="7" class="small">Loading users...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+// ADMIN CHECK
+const token = localStorage.getItem("osn_token");
+const user  = JSON.parse(localStorage.getItem("osn_user") || "{}");
+
+if (!token || user.role !== "admin") {
+  window.location.href = "index.html";
+}
+
+let USERS = [];
+
+async function loadUsers(){
+  const tb = document.getElementById("usersBody");
+  tb.innerHTML = `<tr><td colspan="7" class="small">Loading...</td></tr>`;
+
+  try{
+    let res = await fetch("/api/users", { headers:{ "Authorization":"Bearer "+token } });
+    let data = await res.json();
+
+    USERS = Array.isArray(data) ? data : [];
+    renderUsers(USERS);
+  }catch(err){
+    tb.innerHTML = `<tr><td colspan="7" class="small">Error loading users.</td></tr>`;
+    console.error(err);
+  }
+}
+
+function renderUsers(list){
+  const tb = document.getElementById("usersBody");
+
+  if(!list || list.length===0){
+    tb.innerHTML = `<tr><td colspan="7" class="empty">No users found.</td></tr>`;
+    return;
+  }
+
+  tb.innerHTML = list.map(u => `
+    <tr>
+      <td>${u.id}</td>
+      <td>${escapeHtml(u.name)}</td>
+      <td>${escapeHtml(u.email)}</td>
+      <td>${u.role}</td>
+      <td>${u.status || "active"}</td>
+      <td>${new Date(u.created_at).toLocaleDateString()}</td>
+
+      <td class="actions">
+        ${u.status !== "blocked" 
+          ? `<button class="btn block" onclick="blockUser(${u.id})">Block</button>` 
+          : `<button class="btn unblock" onclick="unblockUser(${u.id})">Unblock</button>`}
+
+        ${u.role !== "admin"
+          ? `<button class="btn delete" onclick="deleteUser(${u.id})">Delete</button>`
+          : ""}
+
+        <button class="btn view" onclick="viewUser(${u.id})">View</button>
+      </td>
+    </tr>
+  `).join("");
+}
+
+// BLOCK USER
+async function blockUser(id){
+  if(!confirm("Block this user?")) return;
+
+  const res = await fetch(`/api/users/${id}/block`, { method:"POST" });
+
+  if(res.ok){
+    alert("User Blocked");
+    loadUsers();
+  }
+}
+
+// UNBLOCK
+async function unblockUser(id){
+  if(!confirm("Unblock this user?")) return;
+
+  const res = await fetch(`/api/users/${id}/unblock`, { method:"POST" });
+
+  if(res.ok){
+    alert("User Unblocked");
+    loadUsers();
+  }
+}
+
+// DELETE USER
+async function deleteUser(id){
+  if(!confirm("Delete this user permanently?")) return;
+
+  const res = await fetch(`/api/users/${id}`, { method:"DELETE" });
+
+  if(res.ok){
+    alert("User Deleted");
+    loadUsers();
+  }
+}
+
+function viewUser(id){
+  const u = USERS.find(x => x.id == id);
+  if(!u) return alert("User not found");
+
+  alert(
+    `ID: ${u.id}\nName: ${u.name}\nEmail: ${u.email}\nRole: ${u.role}\nStatus: ${u.status}\nRegistered: ${new Date(u.created_at).toLocaleString()}`
+  );
+}
+
+function applyFilters(){
+  const q = (document.getElementById("q").value || "").toLowerCase();
+  const role = document.getElementById("roleFilter").value;
+
+  const filtered = USERS.filter(u => {
+    if(role && u.role !== role) return false;
+
+    const text = `${u.name} ${u.email} ${u.role}`.toLowerCase();
+    return text.includes(q);
+  });
+
+  renderUsers(filtered);
+}
+
+// Escape
+function escapeHtml(str){
+  return String(str || "").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+// INIT
+loadUsers();
+</script>
+
+</body>
+</html>

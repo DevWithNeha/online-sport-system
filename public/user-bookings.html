@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>OSN – Ground Booking</title>
+
+<style>
+body{
+    margin:0;
+    font-family:"Segoe UI",Arial;
+    background:#f4f7fa;
+    display:flex;
+}
+
+/* SIDEBAR */
+.sidebar{
+    width:230px;
+    height:100vh;
+    background:#0f172a;
+    color:white;
+    position:fixed;
+    left:0;top:0;
+    padding:20px 0;
+}
+.sidebar h2{text-align:center;margin-bottom:20px;}
+.sidebar a{
+    display:block;
+    padding:12px 20px;
+    color:#cbd5e1;
+    text-decoration:none;
+}
+.sidebar a:hover{background:#1e293b;color:white;}
+
+/* MAIN */
+.main{
+    margin-left:230px;
+    padding:22px;
+    width:100%;
+}
+.topbar{
+    background:white;
+    padding:16px;
+    border-radius:10px;
+    font-size:22px;
+    font-weight:600;
+    box-shadow:0 4px 20px rgba(0,0,0,0.08);
+    margin-bottom:20px;
+}
+
+/* BOOKING FORM */
+.card{
+    background:white;
+    padding:20px;
+    margin-bottom:20px;
+    border-radius:12px;
+    box-shadow:0 6px 20px rgba(0,0,0,0.08);
+}
+label{font-weight:600;}
+input,select{
+    width:100%;
+    padding:12px;
+    border-radius:8px;
+    border:1px solid #cbd5e1;
+    margin-top:6px;
+    margin-bottom:16px;
+}
+.btn{
+    padding:10px 14px;
+    border:none;
+    border-radius:8px;
+    background:#2563eb;
+    color:white;
+    font-weight:600;
+    cursor:pointer;
+}
+.btn:hover{background:#1e40af;}
+
+/* LIST */
+.booking-box{
+    background:white;
+    padding:16px;
+    margin-bottom:14px;
+    border-radius:12px;
+    border:1px solid #e5e7eb;
+}
+.small{color:#64748b;}
+.cancel-btn{
+    background:#ef4444;
+    padding:8px 12px;
+    border-radius:8px;
+    border:none;
+    cursor:pointer;
+    color:white;
+    font-weight:600;
+}
+.cancel-btn:hover{background:#b91c1c;}
+</style>
+</head>
+
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+    <h2>OSN User</h2>
+    <a href="user-dashboard.html">🏠 Dashboard</a>
+    <a href="user-tournaments.html">🏆 Tournaments</a>
+    <a href="user-teams.html">👥 My Teams</a>
+    <a href="user-bookings.html">📅 Ground Booking</a>
+    <a href="user-payments.html">💳 Payments</a>
+    <a href="user-profile.html">🙍 Profile</a>
+    <a href="user-live-score.html">🎥 Live Score</a>
+    <a href="#" onclick="logout()">🚪 Logout</a>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+    <div class="topbar">Ground Booking</div>
+
+    <!-- BOOKING FORM -->
+    <div class="card">
+        <h3>Book Playground</h3>
+
+        <label>Select Sport</label>
+        <select id="sport">
+            <option value="Cricket">Cricket</option>
+            <option value="Football">Football</option>
+            <option value="Badminton">Badminton</option>
+            <option value="Volleyball">Volleyball</option>
+        </select>
+
+        <label>Select Date</label>
+        <input type="date" id="date">
+
+        <label>Select Time Slot</label>
+        <select id="slot">
+            <option value="6 AM - 8 AM">6 AM – 8 AM</option>
+            <option value="8 AM - 10 AM">8 AM – 10 AM</option>
+            <option value="4 PM - 6 PM">4 PM – 6 PM</option>
+            <option value="6 PM - 8 PM">6 PM – 8 PM</option>
+        </select>
+
+        <label>Price (₹)</label>
+        <input id="price" value="300" disabled>
+
+        <button class="btn" onclick="bookNow()">Book Now</button>
+        <div id="msg" style="margin-top:8px;color:#2563eb;"></div>
+    </div>
+
+    <!-- BOOKING LIST -->
+    <div class="card">
+        <h3>Your Bookings</h3>
+        <div id="bookingList">Loading bookings...</div>
+    </div>
+</div>
+
+<script>
+const token = localStorage.getItem("osn_token");
+const user = JSON.parse(localStorage.getItem("osn_user") || "{}");
+
+if(!token || user.role !== "user"){
+    window.location.href="../index.html";
+}
+
+// Load Bookings
+async function loadBookings(){
+    let res = await fetch("/api/user/bookings/" + user.id);
+    let data = await res.json();
+
+    let box = document.getElementById("bookingList");
+
+    if(data.length === 0){
+        box.innerHTML = "No bookings yet.";
+        return;
+    }
+
+    box.innerHTML = data.map(b => `
+        <div class="booking-box">
+            <div><b>${b.sport}</b> — ${b.date}</div>
+            <div class="small">Time: ${b.slot}</div>
+            <div class="small">Price: ₹${b.price}</div>
+            <button class="cancel-btn" onclick="cancelBooking(${b.id})">Cancel</button>
+        </div>
+    `).join("");
+}
+
+// Book Now
+async function bookNow(){
+    let sport = document.getElementById("sport").value;
+    let date = document.getElementById("date").value;
+    let slot = document.getElementById("slot").value;
+    let price = document.getElementById("price").value;
+
+    if(!date){
+        document.getElementById("msg").innerText = "Select a valid date.";
+        return;
+    }
+
+    let res = await fetch("/api/booking", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body:JSON.stringify({
+            user_id:user.id,
+            sport,
+            date,
+            slot,
+            price
+        })
+    });
+
+    let data = await res.json();
+
+    if(res.ok){
+        document.getElementById("msg").innerText = "Booking Successful ✔";
+        loadBookings();
+    } else {
+        document.getElementById("msg").innerText = data.message || "Server error";
+    }
+}
+
+// Cancel Booking
+async function cancelBooking(id){
+    if(!confirm("Cancel booking?")) return;
+
+    let res = await fetch("/api/booking/" + id, { method:"DELETE" });
+
+    if(res.ok){
+        alert("Booking cancelled.");
+        loadBookings();
+    }
+}
+
+function logout(){
+    localStorage.removeItem("osn_token");
+    localStorage.removeItem("osn_user");
+    window.location.href="../index.html";
+}
+
+loadBookings();
+</script>
+
+</body>
+</html>

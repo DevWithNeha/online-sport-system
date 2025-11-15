@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>OSN — Admin Bookings</title>
+<style>
+  :root{
+    --bg:#f4f7fb;
+    --card:#ffffff;
+    --muted:#64748b;
+    --accent:#2563eb;
+    --danger:#ef4444;
+    --ok:#16a34a;
+  }
+  body{margin:0;font-family:Inter,Segoe UI,Arial;background:var(--bg);color:#0f172a}
+  header{background:linear-gradient(90deg,#0f172a,#1e3a8a);padding:14px 20px;color:#fff;display:flex;justify-content:space-between;align-items:center}
+  header .brand{font-weight:700}
+  header nav a{color:#fff;text-decoration:none;margin-left:12px;font-weight:600}
+  .wrap{max-width:1100px;margin:20px auto;padding:16px}
+  .controls{display:flex;gap:12px;margin-bottom:16px;align-items:center}
+  input[type="search"], select{padding:10px;border-radius:8px;border:1px solid #e6eefc;width:220px}
+  .card{background:var(--card);padding:16px;border-radius:12px;box-shadow:0 8px 24px rgba(2,6,23,0.06);margin-bottom:16px}
+  .summary{display:flex;gap:16px}
+  .stat{flex:1;padding:12px;border-radius:10px;background:#fbfdff;border:1px solid #e8f1ff;text-align:center}
+  .stat h4{margin:0;color:#0f172a}
+  .stat p{margin:6px 0 0;color:var(--muted)}
+  .list{margin-top:12px}
+  .bitem{display:flex;justify-content:space-between;align-items:center;padding:12px;border-radius:10px;border:1px solid #eef6ff;background:#fff;margin-bottom:10px}
+  .left{max-width:70%}
+  .btitle{font-weight:700}
+  .bmeta{color:var(--muted);font-size:13px;margin-top:6px}
+  .actions{display:flex;gap:8px;align-items:center}
+  .btn{padding:8px 12px;border-radius:8px;border:none;cursor:pointer;font-weight:700}
+  .btn.confirm{background:var(--ok);color:#fff}
+  .btn.cancel{background:var(--danger);color:#fff}
+  .btn.ghost{background:transparent;border:1px solid #cbd5e1;color:#0f172a}
+  .small{font-size:13px;color:var(--muted)}
+  .empty{text-align:center;padding:20px;color:var(--muted)}
+  .search-wrap{display:flex;gap:8px;align-items:center}
+  @media(max-width:800px){ .controls{flex-direction:column;align-items:stretch} .left{max-width:100%} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">OSN Admin</div>
+  <nav>
+    <a href="admin.html">Dashboard</a>
+    <a href="admin-tournaments.html">Tournaments</a>
+    <a href="admin-matches.html">Matches</a>
+    <a href="admin-teams.html">Teams</a>
+    <a href="admin-users.html">Users</a>
+  </nav>
+</header>
+
+<div class="wrap">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap">
+      <div>
+        <h2 style="margin:0">Manage Bookings</h2>
+        <p class="small" style="margin:6px 0 0">Confirm or cancel booking requests from users.</p>
+      </div>
+
+      <div style="display:flex;gap:10px;align-items:center;margin-top:8px">
+        <div class="search-wrap">
+          <input type="search" id="q" placeholder="Search by ground, user, date..." oninput="applyFilters()" />
+          <select id="filterStatus" onchange="applyFilters()">
+            <option value="">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="summary" style="margin-top:14px">
+      <div class="stat">
+        <h4 id="totalCount">—</h4>
+        <p>Total Bookings</p>
+      </div>
+      <div class="stat">
+        <h4 id="pendingCount">—</h4>
+        <p>Pending</p>
+      </div>
+      <div class="stat">
+        <h4 id="confirmedCount">—</h4>
+        <p>Confirmed</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">All Bookings</h3>
+    <div id="list" class="list">Loading bookings...</div>
+  </div>
+</div>
+
+<script>
+  // auth & admin check
+  const token = localStorage.getItem('osn_token');
+  const user  = JSON.parse(localStorage.getItem('osn_user') || '{}');
+  if(!token || user.role !== 'admin'){
+    window.location.href = 'index.html';
+  }
+
+  let BOOKINGS = []; // cached
+
+  // load bookings from backend
+  async function loadBookings(){
+    const el = document.getElementById('list');
+    el.innerHTML = 'Loading bookings...';
+
+    try{
+      const res = await fetch('/api/bookings', { headers: { 'Authorization': 'Bearer ' + token }});
+      if(!res.ok) throw new Error('Failed to load');
+      const data = await res.json();
+      BOOKINGS = Array.isArray(data) ? data : [];
+      renderBookings(BOOKINGS);
+      updateSummary(BOOKINGS);
+    }catch(err){
+      el.innerHTML = '<div class="empty">Unable to load bookings — server error.</div>';
+      console.error(err);
+    }
+  }
+
+  function updateSummary(list){
+    document.getElementById('totalCount').innerText = list.length;
+    document.getElementById('pendingCount').innerText = list.filter(b=>b.status==='pending').length;
+    document.getElementById('confirmedCount').innerText = list.filter(b=>b.status==='confirmed').length;
+  }
+
+  function renderBookings(list){
+    const el = document.getElementById('list');
+    if(!list || list.length===0){
+      el.innerHTML = '<div class="empty">No bookings found.</div>'; return;
+    }
+
+    el.innerHTML = list.map(b => {
+      // friendly date
+      const d = new Date(b.date);
+      const dateStr = isNaN(d.getTime()) ? b.date : d.toLocaleDateString();
+      const statusClass = b.status === 'confirmed' ? 'confirmed' : (b.status==='cancelled' ? 'cancelled' : 'pending');
+      return `
+        <div class="bitem" data-id="${b.id}">
+          <div class="left">
+            <div class="btitle">${escapeHtml(b.ground_name)}</div>
+            <div class="bmeta">
+              ${escapeHtml(b.user_name || b.user_id || 'User')} • ${dateStr} • ${escapeHtml(b.time_slot)}
+            </div>
+            <div class="small" style="margin-top:6px">Requested: ${new Date(b.created_at).toLocaleString()}</div>
+          </div>
+
+          <div class="actions">
+            ${b.status === 'pending' ? `<button class="btn confirm" onclick="confirmBooking(${b.id})">Confirm</button>` : ''}
+            ${b.status !== 'cancelled' ? `<button class="btn cancel" onclick="cancelBooking(${b.id})">Cancel</button>` : ''}
+            <button class="btn ghost" onclick="viewDetails(${b.id})">Details</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // filters
+  function applyFilters(){
+    const q = (document.getElementById('q').value || '').toLowerCase().trim();
+    const status = document.getElementById('filterStatus').value;
+    const filtered = BOOKINGS.filter(b => {
+      if(status && b.status !== status) return false;
+      if(!q) return true;
+      const s = `${b.ground_name} ${b.user_name || ''} ${b.time_slot} ${b.date}`.toLowerCase();
+      return s.includes(q);
+    });
+    renderBookings(filtered);
+    updateSummary(filtered);
+  }
+
+  // confirm booking (admin)
+  async function confirmBooking(id){
+    if(!confirm('Confirm this booking?')) return;
+    try{
+      const res = await fetch('/api/bookings/' + id + '/confirm', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if(!res.ok){
+        const d = await res.json().catch(()=>({message:'Server error'}));
+        return alert(d.message || 'Confirm failed');
+      }
+      alert('Booking confirmed');
+      await loadBookings();
+    }catch(err){
+      console.error(err);
+      alert('Server error');
+    }
+  }
+
+  // cancel booking (admin)
+  async function cancelBooking(id){
+    if(!confirm('Cancel this booking?')) return;
+    try{
+      const res = await fetch('/api/bookings/' + id + '/cancel', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if(!res.ok){
+        const d = await res.json().catch(()=>({message:'Server error'}));
+        return alert(d.message || 'Cancel failed');
+      }
+      alert('Booking cancelled');
+      await loadBookings();
+    }catch(err){
+      console.error(err);
+      alert('Server error');
+    }
+  }
+
+  // view details (simple modal-like)
+  function viewDetails(id){
+    const b = BOOKINGS.find(x=>x.id==id);
+    if(!b) return alert('Not found');
+    const txt = `Ground: ${b.ground_name}\nUser: ${b.user_name || b.user_id}\nDate: ${b.date}\nTime: ${b.time_slot}\nStatus: ${b.status}\nRequested: ${new Date(b.created_at).toLocaleString()}`;
+    alert(txt);
+  }
+
+  // small escape helper
+  function escapeHtml(s){
+    if(!s) return '';
+    return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
+  }
+
+  // initial load
+  loadBookings();
+</script>
+</body>
+</html>
